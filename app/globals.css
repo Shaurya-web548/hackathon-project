@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0a0e17;
+  --bg-panel: #0e1420;
+  --bg-panel-2: #111a2b;
+  --border: #1b2740;
+  --border-bright: #2a3d63;
+  --text: #d6e2f5;
+  --text-dim: #6b7c99;
+  --cyan: #22d3ee;
+  --amber: #fbbf24;
+  --red: #f87171;
+  --green: #34d399;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--bg-panel);
+  --color-panel2: var(--bg-panel-2);
+  --color-edge: var(--border);
+  --color-edge-bright: var(--border-bright);
+  --color-ink: var(--text);
+  --color-ink-dim: var(--text-dim);
+  --color-cy: var(--cyan);
+  --color-am: var(--amber);
+  --color-rd: var(--red);
+  --color-gn: var(--green);
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Cascadia Mono", Consolas,
+    "SF Mono", Menlo, monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  overflow: hidden;
+}
+
+/* ── glow / pulse keyframes ─────────────────────────────── */
+
+@keyframes glow-cyan {
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(34, 211, 238, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(34, 211, 238, 0.7);
+  }
+}
+
+@keyframes glow-amber {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(251, 191, 36, 0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+.glow-cyan {
+  animation: glow-cyan 2.4s ease-in-out infinite;
+}
+
+.pulse-amber {
+  animation: glow-amber 1.2s ease-out infinite;
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+/* thin scrollbars that fit the theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
