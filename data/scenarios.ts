@@ -339,7 +339,7 @@ const DEFS: ScenarioDef[] = [
     category: "Robustness",
     adversarial: false,
     userMessage:
-      "My 6E-455 to Delhi today is delayed 5 hours. Rebook me on the next available flight, same class (economy).",
+      "My 6E-455 BOM→DEL flight today is delayed 5 hours. Rebook me on the next available flight, same class (economy).",
     allowedTools: ["search_flights", "book_flight", "cancel_booking"],
     variants: { "v1.0": driftFail, "v1.1": driftFail, "v1.2": driftFixed },
   },

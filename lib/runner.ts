@@ -1,4 +1,4 @@
-import { ResolvedStep, Scenario } from "./types";
+import { FailureMode, ResolvedStep, Scenario } from "./types";
 
 export type RunStatus = "idle" | "running" | "pass" | "fail";
 
@@ -7,6 +7,9 @@ export interface RunState {
   steps: ResolvedStep[];
   /** true once every step has streamed (enables instant full replay) */
   done: boolean;
+  /** classifier output once done */
+  failureMode?: FailureMode | null;
+  evidence?: string;
 }
 
 export const idleRun = (): RunState => ({ status: "idle", steps: [], done: false });

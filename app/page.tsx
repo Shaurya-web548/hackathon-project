@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AGENT_NAME, AGENT_TAGLINE, SYSTEM_PROMPT, TOOLS } from "@/data/demoAgent";
 import { getScenarios } from "@/data/scenarios";
 import { runScenario } from "@/lib/sandbox";
+import { classify } from "@/lib/classify";
 import { RunState, idleRun, runSuite } from "@/lib/runner";
 import { AgentVersion, Scenario, VERSIONS } from "@/lib/types";
 import ScenarioCard from "@/components/ScenarioCard";
+import Scorecard from "@/components/Scorecard";
 import TraceConsole from "@/components/TraceConsole";
 
 export default function Home() {
@@ -15,6 +17,7 @@ export default function Home() {
   const [runs, setRuns] = useState<Record<string, RunState>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [suiteRunning, setSuiteRunning] = useState(false);
+  const [history, setHistory] = useState<Partial<Record<AgentVersion, number>>>({});
   /** user clicked a card — stop auto-following the newest run */
   const pinnedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -54,9 +57,17 @@ export default function Home() {
           }));
         },
         onFinish: (s, steps) => {
+          // the classifier — not the authored verdict — decides pass/fail
+          const c = classify(s, steps);
           setRuns((prev) => ({
             ...prev,
-            [s.id]: { status: s.verdict, steps, done: true },
+            [s.id]: {
+              status: c.mode ? "fail" : "pass",
+              steps,
+              done: true,
+              failureMode: c.mode,
+              evidence: c.mode ? c.evidence[c.mode] : undefined,
+            },
           }));
         },
         onSuiteDone: () => setSuiteRunning(false),
@@ -67,6 +78,17 @@ export default function Home() {
 
   // abort any in-flight suite on unmount
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // record the version's score once a full suite completes
+  useEffect(() => {
+    if (suiteRunning) return;
+    const vals = Object.values(runs);
+    if (vals.length === scenarios.length && vals.every((r) => r.done)) {
+      const passes = vals.filter((r) => r.status === "pass").length;
+      const score = Math.round((passes / vals.length) * 100);
+      setHistory((prev) => (prev[version] === score ? prev : { ...prev, [version]: score }));
+    }
+  }, [suiteRunning, runs, scenarios.length, version]);
 
   const selected = scenarios.find((s) => s.id === selectedId) ?? null;
   const selectedRun = selectedId ? (runs[selectedId] ?? idleRun()) : null;
@@ -216,9 +238,12 @@ export default function Home() {
           <h2 className="mb-3 text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
             Reliability Scorecard
           </h2>
-          <div className="grid place-items-center rounded-lg border border-dashed border-edge py-24 text-xs text-ink-dim">
-            Scorecard — Stage 4
-          </div>
+          <Scorecard
+            scenarios={scenarios}
+            runs={runs}
+            version={version}
+            history={history}
+          />
         </aside>
       </main>
     </div>
