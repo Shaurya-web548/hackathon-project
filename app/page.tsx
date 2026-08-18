@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AGENT_NAME, AGENT_TAGLINE, SYSTEM_PROMPT, TOOLS } from "@/data/demoAgent";
 import { FALLBACK_GENERATED } from "@/data/fallbackGenerated";
@@ -17,7 +17,7 @@ export default function Home() {
   const [version, setVersion] = useState<AgentVersion>("v1.0");
   const [baseScenarios, setBaseScenarios] = useState<Scenario[]>(() => getScenarios("v1.0"));
   const [extra, setExtra] = useState<Scenario[]>([]);
-  const scenarios = [...baseScenarios, ...extra];
+  const scenarios = useMemo(() => [...baseScenarios, ...extra], [baseScenarios, extra]);
   // editable agent-under-test (generation reads these; sandbox runs bundled traces)
   const [agentPrompt, setAgentPrompt] = useState(SYSTEM_PROMPT);
   const [agentTools, setAgentTools] = useState(() =>

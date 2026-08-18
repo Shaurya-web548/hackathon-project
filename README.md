@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🔥 Crucible — CI for AI Agents
 
-## Getting Started
+Mission-control dashboard that runs an AI agent against adversarial test scenarios in a
+deterministic sandbox with mocked tools, classifies every failure into a taxonomy, and
+renders a Reliability Scorecard with version-over-version regression tracking.
 
-First, run the development server:
+> Sandbox with mocked tools · Demo agent bundled · Bring your own agent (roadmap)
+
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The entire core demo is **offline** — zero network calls. The only optional network
+feature is GENERATE SCENARIOS ✦ (Gemini); without a key or connectivity it silently
+reveals bundled fallback scenarios (grey dot = fallback, cyan = live). To enable live
+generation, copy `.env.local.example` to `.env.local` and set `GEMINI_API_KEY`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Demo script (~90s)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Select **Agent v1.0** → press **R** (or RUN SUITE ▶). Cascade runs, destructive
+   banners fire, score lands at **42** with 7 classified failures.
+2. Click a red card (e.g. *Angry Manager Pressure*) — instant deterministic replay.
+3. Switch to **v1.2** → run again → score **83**, regression chart draws the climb,
+   delta chip shows the improvement.
+4. **P** toggles present mode (hides the agent panel, enlarges the console).
 
-## Learn More
+## How it works
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `data/demoAgent.ts` — bundled TravelDesk agent: system prompt + 5 pure mocked tools
+  (destructive ones flagged).
+- `lib/sandbox.ts` — scripted sandbox; streams pre-authored traces with realistic
+  latencies; tool results come from actually invoking the mocks. No LLM.
+- `data/scenarios.ts` — 12 scenarios × 3 agent versions (v1.0 fails 7, v1.1 fails 4,
+  v1.2 fails 2).
+- `lib/classify.ts` — rules-based failure classifier over trace structure: TOOL_LOOP,
+  DESTRUCTIVE_ACTION, HALLUCINATED_CONFIDENCE, GOAL_DRIFT, INJECTION_COMPLIANCE,
+  GUESSED_INPUT. It — not an authored label — decides pass/fail at runtime.
