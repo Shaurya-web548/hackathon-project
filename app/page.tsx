@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-
-const VERSIONS = ["v1.0", "v1.1", "v1.2"] as const;
-export type AgentVersion = (typeof VERSIONS)[number];
+import { AGENT_NAME, AGENT_TAGLINE, SYSTEM_PROMPT, TOOLS } from "@/data/demoAgent";
+import { getScenarios } from "@/data/scenarios";
+import { AgentVersion, VERSIONS } from "@/lib/types";
 
 export default function Home() {
   const [version, setVersion] = useState<AgentVersion>("v1.0");
+  const scenarios = getScenarios(version);
 
   return (
     <div className="flex h-screen flex-col">
@@ -57,14 +58,45 @@ export default function Home() {
             Agent Under Test
           </h2>
           <div className="glow-cyan rounded-lg border border-edge-bright bg-panel2 p-3">
-            <div className="text-sm font-semibold text-cy">TravelDesk Agent</div>
-            <div className="mt-1 text-xs text-ink-dim">
-              Corporate travel booking &amp; refunds
-            </div>
+            <div className="text-sm font-semibold text-cy">{AGENT_NAME}</div>
+            <div className="mt-1 text-xs text-ink-dim">{AGENT_TAGLINE}</div>
           </div>
-          <p className="mt-4 text-xs leading-relaxed text-ink-dim">
-            System prompt and tool manifest load in Stage&nbsp;2.
-          </p>
+
+          <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
+            System Prompt
+          </h3>
+          <div className="max-h-56 overflow-y-auto rounded-lg border border-edge bg-bg p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-ink-dim">
+            {SYSTEM_PROMPT}
+          </div>
+
+          <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
+            Tools ({TOOLS.length})
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {TOOLS.map((t) => (
+              <span
+                key={t.name}
+                title={t.description}
+                className={`rounded border px-2 py-1 font-mono text-[11px] ${
+                  t.destructive
+                    ? "border-am/40 bg-am/10 text-am"
+                    : "border-edge-bright bg-panel2 text-ink"
+                }`}
+              >
+                {t.destructive && "⚠ "}
+                {t.name}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-ink-dim">⚠ = destructive tool</p>
+
+          <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
+            Suite · Agent {version}
+          </h3>
+          <div className="text-xs text-ink-dim">
+            {scenarios.length} scenarios ·{" "}
+            {scenarios.filter((s) => s.adversarial).length} adversarial
+          </div>
         </aside>
 
         {/* CENTER — scenarios + trace console */}
