@@ -208,7 +208,7 @@ export default function Home() {
   const anyDone = Object.values(runs).some((r) => r.done);
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className={`flex h-screen flex-col ${present ? "present-zoom" : ""}`}>
       {/* ── Header ─────────────────────────────────────────── */}
       <motion.header
         initial={{ opacity: 0 }}
@@ -228,12 +228,26 @@ export default function Home() {
           role="tablist"
           aria-label="Agent version"
           className="flex rounded border border-edge bg-bg p-0.5 text-xs"
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+            e.preventDefault();
+            const i = VERSIONS.indexOf(version);
+            const next =
+              e.key === "ArrowRight"
+                ? Math.min(i + 1, VERSIONS.length - 1)
+                : Math.max(i - 1, 0);
+            switchVersion(VERSIONS[next]);
+            (
+              e.currentTarget.querySelectorAll("button")[next] as HTMLButtonElement
+            )?.focus();
+          }}
         >
           {VERSIONS.map((v) => (
             <button
               key={v}
               role="tab"
               aria-selected={version === v}
+              tabIndex={version === v ? 0 : -1}
               onClick={() => switchVersion(v)}
               className="relative px-3 py-1 text-ink-dim transition-colors aria-selected:text-ink"
             >
@@ -294,14 +308,20 @@ export default function Home() {
         </div>
       </motion.header>
 
-      {/* ── Body: three columns ────────────────────────────── */}
-      <main className="flex min-h-0 flex-1">
+      {/* ── Body: three columns ≥1024 · right stacks ≤1024 · single column ≤768 ── */}
+      <main
+        className={`grid min-h-0 flex-1 grid-cols-1 overflow-y-auto md:grid-cols-[280px_minmax(0,1fr)] lg:overflow-hidden ${
+          present
+            ? "lg:grid-cols-[minmax(0,1fr)_360px]"
+            : "lg:grid-cols-[300px_minmax(0,1fr)_360px]"
+        }`}
+      >
         {/* LEFT — Agent under test (hidden in present mode) */}
         <motion.aside
           initial={{ opacity: 0, x: -8 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.08, duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-          className={`w-[300px] shrink-0 overflow-y-auto border-r border-edge bg-panel p-4 ${
+          className={`border-b border-edge bg-panel p-4 md:border-r md:border-b-0 lg:min-h-0 lg:overflow-y-auto ${
             present ? "hidden" : ""
           }`}
         >
@@ -369,7 +389,7 @@ export default function Home() {
         </motion.aside>
 
         {/* CENTER — scenarios + trace console */}
-        <section className="relative flex min-w-0 flex-1 flex-col">
+        <section className="relative flex min-h-0 min-w-0 flex-col">
           {/* tripwire banner — drops from the top of this column */}
           <AnimatePresence>
             {banner && (
@@ -483,8 +503,8 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5, duration: 0.4 }}
-            className={`flex shrink-0 flex-col border-t border-edge bg-panel p-4 ${
-              present ? "h-[60%]" : "h-[40%]"
+            className={`flex h-[340px] shrink-0 flex-col border-t border-edge bg-panel p-4 ${
+              present ? "lg:h-[60%]" : "lg:h-[40%]"
             }`}
           >
             <h2 className="eyebrow mb-2 shrink-0">Trace console</h2>
@@ -499,7 +519,7 @@ export default function Home() {
           initial={{ opacity: 0, x: 8 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.16, duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-          className="w-[360px] shrink-0 overflow-y-auto border-l border-edge bg-panel p-4"
+          className="border-t border-edge bg-panel p-4 md:col-span-2 lg:col-span-1 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l"
         >
           <h2 className="eyebrow mb-3">Reliability scorecard</h2>
           <Scorecard

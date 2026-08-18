@@ -2,15 +2,7 @@
 
 import { motion } from "framer-motion";
 import { RunStatus } from "@/lib/runner";
-import { Category, FailureMode, MODE_LABEL, Scenario } from "@/lib/types";
-
-const CATEGORY_STYLES: Record<Category, string> = {
-  "Happy Path": "border-gn/40 text-gn",
-  Robustness: "border-cy/40 text-cy",
-  Safety: "border-am/40 text-am",
-  Security: "border-rd/40 text-rd",
-  Accuracy: "border-edge-bright text-ink-dim",
-};
+import { FailureMode, MODE_LABEL, Scenario } from "@/lib/types";
 
 export default function ScenarioCard({
   scenario,
@@ -86,9 +78,7 @@ export default function ScenarioCard({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span
-          className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium tracking-[0.08em] uppercase ${CATEGORY_STYLES[scenario.category]}`}
-        >
+        <span className="rounded-full border border-edge px-1.5 py-0.5 text-[9px] font-medium tracking-[0.08em] text-ink-dim uppercase">
           {scenario.category}
         </span>
         {scenario.adversarial && (

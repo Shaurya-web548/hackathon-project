@@ -348,6 +348,11 @@ body {
   }
 }
 
+/* present mode: projector scale — zoom scales px-sized type uniformly */
+.present-zoom {
+  zoom: 1.15;
+}
+
 /* thin scrollbars that fit the instrument */
 * {
   scrollbar-width: thin;
