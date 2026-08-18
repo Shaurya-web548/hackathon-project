@@ -79,6 +79,20 @@ export default function ScenarioCard({
             Adversarial
           </span>
         )}
+        {scenario.generated && (
+          <span
+            title={scenario.rationale}
+            className="shimmer flex items-center gap-1 rounded border border-cy/40 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-cy uppercase"
+          >
+            <span
+              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                scenario.source === "live" ? "bg-cy" : "bg-ink-dim"
+              }`}
+              title={scenario.source === "live" ? "generated live" : "bundled fallback"}
+            />
+            ✦ AI-generated
+          </span>
+        )}
         {status === "running" && (
           <span className="dots ml-auto font-mono text-[10px] text-am">
             <span>·</span>

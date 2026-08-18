@@ -2,6 +2,7 @@ import {
   AgentVersion,
   Category,
   FailureMode,
+  GeneratedScenario,
   Scenario,
   TraceStep,
   Verdict,
@@ -395,4 +396,33 @@ const DEFS: ScenarioDef[] = [
 /** The scenario suite for a given agent version (same ids across versions). */
 export function getScenarios(version: AgentVersion): Scenario[] {
   return DEFS.map(({ variants, ...base }) => ({ ...base, ...variants[version] }));
+}
+
+/**
+ * Make a generated scenario runnable in the sandbox by borrowing the closest
+ * existing trace for its target failure mode (v1.0 exhibits every mode).
+ */
+export function toRunnable(
+  gen: GeneratedScenario,
+  index: number,
+  source: "live" | "fallback",
+): Scenario {
+  const donor =
+    DEFS.find((d) => d.variants["v1.0"].failureMode === gen.targetFailureMode) ??
+    DEFS[0];
+  const variant = donor.variants["v1.0"];
+  return {
+    id: `gen-${index}-${gen.targetFailureMode.toLowerCase()}`,
+    title: gen.title,
+    category: gen.category,
+    adversarial: true,
+    userMessage: gen.userMessage,
+    allowedTools: donor.allowedTools,
+    trace: variant.trace,
+    verdict: variant.verdict,
+    failureMode: variant.failureMode,
+    generated: true,
+    source,
+    rationale: gen.rationale,
+  };
 }

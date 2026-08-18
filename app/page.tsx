@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AGENT_NAME, AGENT_TAGLINE, SYSTEM_PROMPT, TOOLS } from "@/data/demoAgent";
-import { getScenarios } from "@/data/scenarios";
+import { FALLBACK_GENERATED } from "@/data/fallbackGenerated";
+import { getScenarios, toRunnable } from "@/data/scenarios";
 import { runScenario } from "@/lib/sandbox";
 import { classify } from "@/lib/classify";
 import { RunState, idleRun, runSuite } from "@/lib/runner";
@@ -14,7 +15,15 @@ import TraceConsole from "@/components/TraceConsole";
 
 export default function Home() {
   const [version, setVersion] = useState<AgentVersion>("v1.0");
-  const [scenarios, setScenarios] = useState<Scenario[]>(() => getScenarios("v1.0"));
+  const [baseScenarios, setBaseScenarios] = useState<Scenario[]>(() => getScenarios("v1.0"));
+  const [extra, setExtra] = useState<Scenario[]>([]);
+  const scenarios = [...baseScenarios, ...extra];
+  // editable agent-under-test (generation reads these; sandbox runs bundled traces)
+  const [agentPrompt, setAgentPrompt] = useState(SYSTEM_PROMPT);
+  const [agentTools, setAgentTools] = useState(() =>
+    TOOLS.map((t) => `${t.name}${t.destructive ? " (destructive)" : ""} — ${t.description}`).join("\n"),
+  );
+  const [genState, setGenState] = useState<"idle" | "loading" | "live" | "fallback">("idle");
   const [runs, setRuns] = useState<Record<string, RunState>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [suiteRunning, setSuiteRunning] = useState(false);
@@ -40,7 +49,7 @@ export default function Home() {
   const switchVersion = (v: AgentVersion) => {
     abortRef.current?.abort();
     setVersion(v);
-    setScenarios(getScenarios(v));
+    setBaseScenarios(getScenarios(v));
     setRuns({});
     setSelectedId(null);
     setSuiteRunning(false);
@@ -107,6 +116,34 @@ export default function Home() {
 
   // abort any in-flight suite on unmount
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  const generate = async () => {
+    if (genState === "loading" || suiteRunning) return;
+    setGenState("loading");
+    let gens = null;
+    let source: "live" | "fallback" = "fallback";
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 7000);
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ systemPrompt: agentPrompt, tools: agentTools }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.scenarios) && data.scenarios.length > 0) {
+        gens = data.scenarios;
+        source = "live";
+      }
+    } catch {
+      /* silent — fallback below */
+    }
+    if (!gens) gens = FALLBACK_GENERATED;
+    setExtra(gens.map((g: (typeof FALLBACK_GENERATED)[number], i: number) => toRunnable(g, i, source)));
+    setGenState(source);
+  };
 
   // record the version's score once a full suite completes
   useEffect(() => {
@@ -221,11 +258,14 @@ export default function Home() {
           </div>
 
           <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
-            System Prompt
+            System Prompt <span className="normal-case">(editable)</span>
           </h3>
-          <div className="max-h-56 overflow-y-auto rounded-lg border border-edge bg-bg p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-ink-dim">
-            {SYSTEM_PROMPT}
-          </div>
+          <textarea
+            value={agentPrompt}
+            onChange={(e) => setAgentPrompt(e.target.value)}
+            spellCheck={false}
+            className="h-48 w-full resize-y rounded-lg border border-edge bg-bg p-3 font-mono text-[11px] leading-relaxed text-ink-dim outline-none focus:border-cy/40"
+          />
 
           <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
             Tools ({TOOLS.length})
@@ -255,6 +295,16 @@ export default function Home() {
           <p className="mt-2 text-[10px] text-ink-dim">⚠ = destructive tool</p>
 
           <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
+            Tool Manifest <span className="normal-case">(editable — read by generation)</span>
+          </h3>
+          <textarea
+            value={agentTools}
+            onChange={(e) => setAgentTools(e.target.value)}
+            spellCheck={false}
+            className="h-28 w-full resize-y rounded-lg border border-edge bg-bg p-3 font-mono text-[10px] leading-relaxed text-ink-dim outline-none focus:border-cy/40"
+          />
+
+          <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
             Suite · Agent {version}
           </h3>
           <div className="text-xs text-ink-dim">
@@ -275,17 +325,38 @@ export default function Home() {
                   </span>
                 )}
               </h2>
-              <button
-                onClick={startSuite}
-                disabled={suiteRunning}
-                className={`rounded border px-4 py-1.5 text-xs font-bold tracking-wide transition-colors ${
-                  suiteRunning
-                    ? "cursor-default border-am/40 bg-am/10 text-am"
-                    : "border-cy/50 bg-cy/10 text-cy hover:bg-cy/20"
-                }`}
-              >
-                {suiteRunning ? "RUNNING···" : "RUN SUITE ▶"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={generate}
+                  disabled={genState === "loading" || suiteRunning}
+                  title="Generate 4 new adversarial scenarios from the agent panel (falls back to bundled ones offline)"
+                  className={`flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-bold tracking-wide transition-colors ${
+                    genState === "loading"
+                      ? "shimmer cursor-default border-cy/40 text-cy"
+                      : "border-edge-bright text-ink-dim hover:border-cy/50 hover:text-cy"
+                  }`}
+                >
+                  {genState !== "idle" && genState !== "loading" && (
+                    <span
+                      className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        genState === "live" ? "bg-cy" : "bg-ink-dim"
+                      }`}
+                    />
+                  )}
+                  {genState === "loading" ? "GENERATING ✦" : "GENERATE SCENARIOS ✦"}
+                </button>
+                <button
+                  onClick={startSuite}
+                  disabled={suiteRunning}
+                  className={`rounded border px-4 py-1.5 text-xs font-bold tracking-wide transition-colors ${
+                    suiteRunning
+                      ? "cursor-default border-am/40 bg-am/10 text-am"
+                      : "border-cy/50 bg-cy/10 text-cy hover:bg-cy/20"
+                  }`}
+                >
+                  {suiteRunning ? "RUNNING···" : "RUN SUITE ▶"}
+                </button>
+              </div>
             </div>
 
             <div className="relative grid grid-cols-2 gap-2.5 xl:grid-cols-3">
