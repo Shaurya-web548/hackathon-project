@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { AGENT_NAME, AGENT_TAGLINE, SYSTEM_PROMPT, TOOLS } from "@/data/demoAgent";
 import { getScenarios } from "@/data/scenarios";
 import { runScenario } from "@/lib/sandbox";
@@ -18,6 +19,20 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [suiteRunning, setSuiteRunning] = useState(false);
   const [history, setHistory] = useState<Partial<Record<AgentVersion, number>>>({});
+  const [lastRecorded, setLastRecorded] = useState<AgentVersion | null>(null);
+  const [present, setPresent] = useState(false);
+  const [scanKey, setScanKey] = useState(0);
+  const [banner, setBanner] = useState<{ id: number; text: string } | null>(null);
+  const [toolFlash, setToolFlash] = useState<{ tool: string; ts: number } | null>(null);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** run ids where a confirmation step has already streamed */
+  const confirmedRuns = useRef<Set<string>>(new Set());
+
+  const fireBanner = (text: string) => {
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    setBanner({ id: Date.now(), text });
+    bannerTimer.current = setTimeout(() => setBanner(null), 3000);
+  };
   /** user clicked a card — stop auto-following the newest run */
   const pinnedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -38,9 +53,11 @@ export default function Home() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     pinnedRef.current = false;
+    confirmedRuns.current = new Set();
     setRuns(Object.fromEntries(scenarios.map((s) => [s.id, idleRun()])));
     setSelectedId(null);
     setSuiteRunning(true);
+    setScanKey((k) => k + 1); // fire the scanline sweep
 
     runSuite(
       scenarios,
@@ -55,6 +72,18 @@ export default function Home() {
             ...prev,
             [s.id]: { ...prev[s.id], steps: [...prev[s.id].steps, step] },
           }));
+          if (step.flags?.confirmation) confirmedRuns.current.add(s.id);
+          if (step.type === "tool_call" && step.tool) {
+            setToolFlash({ tool: step.tool, ts: Date.now() });
+            if (step.destructive && !confirmedRuns.current.has(s.id)) {
+              const a = step.args ?? {};
+              const detail =
+                a.amount !== undefined
+                  ? `₹${Number(a.amount).toLocaleString("en-IN")}`
+                  : String(a.bookingId ?? "");
+              fireBanner(`⚠ Unconfirmed destructive action: ${step.tool}(${detail})`);
+            }
+          }
         },
         onFinish: (s, steps) => {
           // the classifier — not the authored verdict — decides pass/fail
@@ -87,8 +116,21 @@ export default function Home() {
       const passes = vals.filter((r) => r.status === "pass").length;
       const score = Math.round((passes / vals.length) * 100);
       setHistory((prev) => (prev[version] === score ? prev : { ...prev, [version]: score }));
+      setLastRecorded(version);
     }
   }, [suiteRunning, runs, scenarios.length, version]);
+
+  // keyboard: R runs the suite, P toggles present mode
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;
+      if (e.key === "r" || e.key === "R") startSuite();
+      if (e.key === "p" || e.key === "P") setPresent((p) => !p);
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [startSuite]);
 
   const selected = scenarios.find((s) => s.id === selectedId) ?? null;
   const selectedRun = selectedId ? (runs[selectedId] ?? idleRun()) : null;
@@ -96,6 +138,23 @@ export default function Home() {
 
   return (
     <div className="flex h-screen flex-col">
+      <div className="ambient-grid" aria-hidden />
+
+      {/* destructive-action banner */}
+      <AnimatePresence>
+        {banner && (
+          <motion.div
+            key={banner.id}
+            initial={{ y: -48, x: "-50%", opacity: 0 }}
+            animate={{ y: 12, x: "-50%", opacity: 1 }}
+            exit={{ y: -48, x: "-50%", opacity: 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 22 }}
+            className="fixed top-0 left-1/2 z-50 rounded-lg border border-am/60 bg-[#2a2008] px-4 py-2 font-mono text-xs font-semibold text-am shadow-[0_0_24px_rgba(251,191,36,0.25)]"
+          >
+            {banner.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* ── Header ─────────────────────────────────────────── */}
       <header className="flex shrink-0 items-center gap-4 border-b border-edge bg-panel px-5 py-3">
         <h1 className="text-lg font-bold tracking-tight whitespace-nowrap">
@@ -114,6 +173,18 @@ export default function Home() {
             <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-gn" />
             sandbox online
           </span>
+
+          <button
+            onClick={() => setPresent((p) => !p)}
+            title="Toggle present mode (P) — hides the agent panel, enlarges the console"
+            className={`rounded-full border px-3 py-1 text-[11px] transition-colors ${
+              present
+                ? "border-cy/50 bg-cy/15 font-semibold text-cy"
+                : "border-edge-bright text-ink-dim hover:text-ink"
+            }`}
+          >
+            ▣ Present
+          </button>
 
           <div className="flex overflow-hidden rounded-full border border-edge-bright text-xs">
             {VERSIONS.map((v) => (
@@ -135,8 +206,12 @@ export default function Home() {
 
       {/* ── Body: three columns ────────────────────────────── */}
       <main className="flex min-h-0 flex-1">
-        {/* LEFT — Agent Under Test */}
-        <aside className="w-[300px] shrink-0 overflow-y-auto border-r border-edge bg-panel p-4">
+        {/* LEFT — Agent Under Test (hidden in present mode) */}
+        <aside
+          className={`w-[300px] shrink-0 overflow-y-auto border-r border-edge bg-panel p-4 ${
+            present ? "hidden" : ""
+          }`}
+        >
           <h2 className="mb-3 text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
             Agent Under Test
           </h2>
@@ -156,20 +231,26 @@ export default function Home() {
             Tools ({TOOLS.length})
           </h3>
           <div className="flex flex-wrap gap-1.5">
-            {TOOLS.map((t) => (
-              <span
-                key={t.name}
-                title={t.description}
-                className={`rounded border px-2 py-1 font-mono text-[11px] ${
-                  t.destructive
-                    ? "border-am/40 bg-am/10 text-am"
-                    : "border-edge-bright bg-panel2 text-ink"
-                }`}
-              >
-                {t.destructive && "⚠ "}
-                {t.name}
-              </span>
-            ))}
+            {TOOLS.map((t) => {
+              const flashing = toolFlash?.tool === t.name;
+              return (
+                <span
+                  // remount on each flash so the animation replays
+                  key={t.name + (flashing ? `-${toolFlash.ts}` : "")}
+                  title={t.description}
+                  className={`rounded border px-2 py-1 font-mono text-[11px] ${
+                    flashing ? "chip-flash" : ""
+                  } ${
+                    t.destructive
+                      ? "border-am/40 bg-am/10 text-am"
+                      : "border-edge-bright bg-panel2 text-ink"
+                  }`}
+                >
+                  {t.destructive && "⚠ "}
+                  {t.name}
+                </span>
+              );
+            })}
           </div>
           <p className="mt-2 text-[10px] text-ink-dim">⚠ = destructive tool</p>
 
@@ -207,7 +288,8 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-3">
+            <div className="relative grid grid-cols-2 gap-2.5 xl:grid-cols-3">
+              {scanKey > 0 && <div key={scanKey} className="scanline" />}
               {scenarios.map((s) => (
                 <ScenarioCard
                   key={s.id}
@@ -223,7 +305,11 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex h-[38%] shrink-0 flex-col border-t border-edge bg-panel p-4">
+          <div
+            className={`flex shrink-0 flex-col border-t border-edge bg-panel p-4 ${
+              present ? "h-[52%]" : "h-[38%]"
+            }`}
+          >
             <h2 className="mb-2 shrink-0 text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
               Trace Console
             </h2>
@@ -243,6 +329,7 @@ export default function Home() {
             runs={runs}
             version={version}
             history={history}
+            lastRecorded={lastRecorded}
           />
         </aside>
       </main>

@@ -52,11 +52,14 @@ export default function Scorecard({
   runs,
   version,
   history,
+  lastRecorded,
 }: {
   scenarios: Scenario[];
   runs: Record<string, RunState>;
   version: AgentVersion;
   history: Partial<Record<AgentVersion, number>>;
+  /** version whose score most recently landed — its chart point pops */
+  lastRecorded: AgentVersion | null;
 }) {
   const finished = scenarios.filter((s) => runs[s.id]?.done);
   const passes = finished.filter((s) => runs[s.id].status === "pass");
@@ -150,7 +153,7 @@ export default function Scorecard({
           Failure Taxonomy
         </h3>
         <div className="flex flex-col gap-2">
-          {byMode.map(({ mode, scenarios: list }) => (
+          {byMode.map(({ mode, scenarios: list }, i) => (
             <div
               key={mode}
               title={list.length ? list.map((s) => s.title).join(" · ") : "no failures"}
@@ -166,7 +169,7 @@ export default function Scorecard({
                   className="h-full rounded bg-rd"
                   initial={{ width: 0 }}
                   animate={{ width: `${(list.length / maxCount) * 100}%` }}
-                  transition={{ type: "spring", stiffness: 60, damping: 16 }}
+                  transition={{ type: "spring", stiffness: 60, damping: 16, delay: i * 0.07 }}
                 />
               </div>
             </div>
@@ -236,7 +239,29 @@ export default function Scorecard({
                 dataKey="score"
                 stroke="var(--cyan)"
                 strokeWidth={2}
-                dot={{ r: 4, fill: "var(--cyan)", strokeWidth: 0 }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                dot={(props: any) => {
+                  const { cx, cy, payload } = props;
+                  if (payload.score === null || cx == null) return <g key={payload.version} />;
+                  const isNew = payload.version === lastRecorded;
+                  return (
+                    <g key={payload.version}>
+                      <circle cx={cx} cy={cy} r={4} fill="var(--cyan)" />
+                      {isNew && (
+                        <circle
+                          key={`pop-${payload.score}`}
+                          className="point-pop"
+                          cx={cx}
+                          cy={cy}
+                          r={5}
+                          fill="none"
+                          stroke="var(--cyan)"
+                          strokeWidth={1.5}
+                        />
+                      )}
+                    </g>
+                  );
+                }}
                 isAnimationActive
                 animationDuration={900}
                 connectNulls={false}

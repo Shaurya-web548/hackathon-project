@@ -36,7 +36,7 @@ export default function ScenarioCard({
       : status === "pass"
         ? "border-gn/50 bg-gn/[0.07]"
         : status === "fail"
-          ? "border-rd/50 bg-rd/[0.07]"
+          ? "border-rd/50 bg-rd/[0.07] fail-ripple"
           : "border-edge hover:border-edge-bright";
 
   return (
@@ -51,7 +51,22 @@ export default function ScenarioCard({
     >
       <div className="flex items-start justify-between gap-2">
         <span className="text-xs leading-snug font-semibold">{scenario.title}</span>
-        <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${DOT[status]}`} />
+        {status === "pass" ? (
+          <svg viewBox="0 0 24 24" className="mt-0.5 h-3.5 w-3.5 shrink-0">
+            <path
+              d="M5 13l4 4L19 7"
+              fill="none"
+              stroke="var(--green)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              className="check-draw"
+            />
+          </svg>
+        ) : status === "fail" ? (
+          <span className="mt-0.5 text-[11px] leading-none font-bold text-rd">✕</span>
+        ) : (
+          <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${DOT[status]}`} />
+        )}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <span
@@ -65,7 +80,11 @@ export default function ScenarioCard({
           </span>
         )}
         {status === "running" && (
-          <span className="ml-auto font-mono text-[10px] text-am">···</span>
+          <span className="dots ml-auto font-mono text-[10px] text-am">
+            <span>·</span>
+            <span>·</span>
+            <span>·</span>
+          </span>
         )}
       </div>
     </motion.button>

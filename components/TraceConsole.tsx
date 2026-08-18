@@ -35,7 +35,11 @@ function StepLine({ step, animate }: { step: ResolvedStep; animate: boolean }) {
   if (step.type === "tool_call") {
     const args = JSON.stringify(step.args ?? {});
     return (
-      <div className={step.destructive ? "rounded bg-am/10 px-1 text-cy" : "text-cy"}>
+      <div
+        className={
+          step.destructive ? "destructive-glow rounded bg-am/10 px-1 text-cy" : "text-cy"
+        }
+      >
         {step.destructive && (
           <span className="mr-1 font-bold text-am" title="destructive tool">
             ⚠
