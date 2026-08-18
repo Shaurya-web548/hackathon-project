@@ -13,17 +13,31 @@ import ScenarioCard from "@/components/ScenarioCard";
 import Scorecard from "@/components/Scorecard";
 import TraceConsole from "@/components/TraceConsole";
 
+/** deterministic chaos retry appetite per version — >3 trips the TOOL_LOOP rule */
+const CHAOS_RETRIES: Record<AgentVersion, number> = { "v1.0": 4, "v1.1": 2, "v1.2": 1 };
+
+const STRESS_LABELS = ["Normal User", "Mixed Suite", "Hostile Hacker"];
+
 export default function Home() {
   const [version, setVersion] = useState<AgentVersion>("v1.0");
   const [baseScenarios, setBaseScenarios] = useState<Scenario[]>(() => getScenarios("v1.0"));
   const [extra, setExtra] = useState<Scenario[]>([]);
-  const scenarios = useMemo(() => [...baseScenarios, ...extra], [baseScenarios, extra]);
+  /** 0 = Normal User · 1 = Mixed (default) · 2 = Hostile Hacker */
+  const [stress, setStress] = useState(1);
+  const scenarios = useMemo(() => {
+    if (stress === 0) return baseScenarios.filter((s) => !s.adversarial);
+    if (stress === 1) return baseScenarios;
+    return [...baseScenarios, ...extra];
+  }, [baseScenarios, extra, stress]);
   // editable agent-under-test (generation reads these; sandbox runs bundled traces)
   const [agentPrompt, setAgentPrompt] = useState(SYSTEM_PROMPT);
   const [agentTools, setAgentTools] = useState(() =>
     TOOLS.map((t) => `${t.name}${t.destructive ? " (destructive)" : ""} — ${t.description}`).join("\n"),
   );
   const [genState, setGenState] = useState<"idle" | "loading" | "live" | "fallback">("idle");
+  const [chaos, setChaos] = useState(false);
+  /** was the last suite run under chaos? (chaos runs don't record history) */
+  const chaosRunRef = useRef(false);
   const [runs, setRuns] = useState<Record<string, RunState>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [suiteRunning, setSuiteRunning] = useState(false);
@@ -68,9 +82,11 @@ export default function Home() {
     setSuiteRunning(true);
     setScanKey((k) => k + 1); // fire the scanline sweep
 
+    chaosRunRef.current = chaos;
     runSuite(
       scenarios,
-      runScenario,
+      (s, onStep, signal) =>
+        runScenario(s, onStep, signal, chaos ? CHAOS_RETRIES[version] : 0),
       {
         onStart: (s) => {
           setRuns((prev) => ({ ...prev, [s.id]: { ...idleRun(), status: "running" } }));
@@ -112,7 +128,7 @@ export default function Home() {
       },
       ctrl.signal,
     );
-  }, [scenarios, suiteRunning]);
+  }, [scenarios, suiteRunning, chaos, version]);
 
   // abort any in-flight suite on unmount
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -150,6 +166,7 @@ export default function Home() {
     if (suiteRunning) return;
     const vals = Object.values(runs);
     if (vals.length === scenarios.length && vals.every((r) => r.done)) {
+      if (chaosRunRef.current) return; // chaos runs don't pollute the regression chart
       const passes = vals.filter((r) => r.status === "pass").length;
       const score = Math.round((passes / vals.length) * 100);
       setHistory((prev) => (prev[version] === score ? prev : { ...prev, [version]: score }));
@@ -325,7 +342,48 @@ export default function Home() {
                   </span>
                 )}
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                {/* stress slider */}
+                <label className="flex items-center gap-2 text-[10px] text-ink-dim">
+                  <span className="tracking-wider uppercase">Stress</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={2}
+                    step={1}
+                    value={stress}
+                    onChange={(e) => {
+                      const lvl = Number(e.target.value);
+                      setStress(lvl);
+                      if (lvl === 2 && extra.length === 0) {
+                        setExtra(FALLBACK_GENERATED.map((g, i) => toRunnable(g, i, "fallback")));
+                        setGenState("fallback");
+                      }
+                    }}
+                    className="w-24 accent-[var(--red)]"
+                  />
+                  <span
+                    className={`w-[86px] font-semibold whitespace-nowrap ${
+                      stress === 2 ? "text-rd" : stress === 0 ? "text-gn" : "text-am"
+                    }`}
+                  >
+                    {STRESS_LABELS[stress]}
+                  </span>
+                </label>
+
+                {/* chaos toggle */}
+                <button
+                  onClick={() => !suiteRunning && setChaos((c) => !c)}
+                  title="Chaos engineering: deterministically inject 503s + latency into mocked tools mid-run"
+                  className={`rounded border px-3 py-1.5 text-xs font-bold tracking-wide transition-colors ${
+                    chaos
+                      ? "border-am/60 bg-am/15 text-am shadow-[0_0_12px_rgba(251,191,36,0.25)]"
+                      : "border-edge-bright text-ink-dim hover:border-am/50 hover:text-am"
+                  }`}
+                >
+                  ☢ CHAOS {chaos ? "ON" : "OFF"}
+                </button>
+
                 <button
                   onClick={generate}
                   disabled={genState === "loading" || suiteRunning}

@@ -18,6 +18,20 @@ feature is GENERATE SCENARIOS ✦ (Gemini); without a key or connectivity it sil
 reveals bundled fallback scenarios (grey dot = fallback, cyan = live). To enable live
 generation, copy `.env.local.example` to `.env.local` and set `GEMINI_API_KEY`.
 
+## Extra weapons
+
+- **☢ CHAOS toggle** — deterministically injects 503s + latency into the mocked
+  flight-search tool mid-run. v1.0 hammers retries and collapses into TOOL_LOOP
+  failures (7 → 10 fails); v1.2 retries once and degrades gracefully. Chaos runs
+  don't pollute the regression chart.
+- **Stress slider** — Normal User (happy paths only) → Mixed Suite (default 12)
+  → Hostile Hacker (adds the AI-generated adversarial pack). The 42/67/83 story
+  assumes Mixed.
+- **Resource Burn** — simulated token + ₹ accounting per run and per suite; the
+  retry loop is visibly the worst burner. Per-run cost shows in the console.
+- **Suggest patch ✦** — the Worst Offender card produces a system-prompt diff
+  fixing that failure mode, with one-click copy. Pre-authored per mode, offline.
+
 ## Demo script (~90s)
 
 1. Select **Agent v1.0** → press **R** (or RUN SUITE ▶). Cascade runs, destructive

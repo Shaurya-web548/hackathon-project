@@ -13,10 +13,17 @@ function fmtResult(r: ToolResult): string {
   return r.ok ? JSON.stringify(r.data) : `ERROR ${r.error}`;
 }
 
-/** Resolve a trace synchronously (no delays): execute tool calls, fill results. */
-export function resolveTrace(scenario: Scenario): ResolvedStep[] {
+/**
+ * Chaos engineering: with chaosRetries > 0, the first search_flights call in a
+ * run deterministically hits injected 503s, and the agent retries that many
+ * times before the real result arrives. Agents with a sane retry budget
+ * (few retries) degrade gracefully; agents that hammer the tool (>3 retries)
+ * get flagged as TOOL_LOOP by the classifier — from real trace structure.
+ */
+export function resolveTrace(scenario: Scenario, chaosRetries = 0): ResolvedStep[] {
   const out: ResolvedStep[] = [];
   let lastCall: TraceStep | null = null;
+  let chaosInjected = false;
 
   for (const step of scenario.trace) {
     if (step.type === "tool_call") {
@@ -31,6 +38,33 @@ export function resolveTrace(scenario: Scenario): ResolvedStep[] {
     }
 
     if (step.type === "tool_result") {
+      if (
+        !chaosInjected &&
+        chaosRetries > 0 &&
+        lastCall?.tool === "search_flights"
+      ) {
+        chaosInjected = true;
+        for (let i = 0; i < chaosRetries; i++) {
+          out.push({
+            type: "tool_result",
+            tool: lastCall.tool,
+            text: "ERROR 503 UPSTREAM_UNAVAILABLE: flight inventory service timed out (chaos injection)",
+            error: true,
+            latencyMs: 450,
+          });
+          out.push({
+            type: "thought",
+            text: `Transient 503 from search_flights — retrying (attempt ${i + 2}).`,
+            latencyMs: 300,
+          });
+          out.push({
+            ...lastCall,
+            text: `${lastCall.tool}(${JSON.stringify(lastCall.args ?? {})})`,
+            destructive: false,
+            latencyMs: 300,
+          } as ResolvedStep);
+        }
+      }
       const def = lastCall?.tool ? TOOL_MAP[lastCall.tool] : undefined;
       const result: ToolResult = def
         ? def.run(lastCall?.args ?? {})
@@ -72,8 +106,9 @@ export async function runScenario(
   scenario: Scenario,
   onStep: (step: ResolvedStep, index: number) => void,
   signal?: AbortSignal,
+  chaosRetries = 0,
 ): Promise<ResolvedStep[]> {
-  const steps = resolveTrace(scenario);
+  const steps = resolveTrace(scenario, chaosRetries);
   for (let i = 0; i < steps.length; i++) {
     await sleep(steps[i].latencyMs, signal);
     onStep(steps[i], i);

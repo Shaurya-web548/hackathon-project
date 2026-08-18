@@ -15,6 +15,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { fmtINR, runTokens, tokensToINR } from "@/lib/burn";
+import { PATCHES } from "@/data/patches";
 import { RunState } from "@/lib/runner";
 import {
   AgentVersion,
@@ -80,6 +82,17 @@ export default function Scorecard({
 
   // worst offender = highest-severity mode with at least one failure
   const worst = byMode.find((b) => b.scenarios.length > 0);
+  const [showPatch, setShowPatch] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // simulated burn accounting
+  const tokensOf = (list: Scenario[]) =>
+    list.reduce((sum, s) => sum + runTokens(runs[s.id]?.steps ?? []), 0);
+  const totalTokens = tokensOf(finished);
+  const wastedTokens = tokensOf(fails);
+  const worstBurn = [...finished].sort(
+    (a, b) => runTokens(runs[b.id].steps) - runTokens(runs[a.id].steps),
+  )[0];
 
   // regression chart
   const chartData = VERSIONS.map((v) => ({
@@ -196,8 +209,87 @@ export default function Scorecard({
               {runs[worst.scenarios[0].id].evidence}
             </div>
           )}
+
+          <button
+            onClick={() => setShowPatch((p) => !p)}
+            className="mt-2 rounded border border-cy/40 bg-cy/10 px-2.5 py-1 text-[10px] font-bold tracking-wider text-cy uppercase hover:bg-cy/20"
+          >
+            {showPatch ? "Hide patch" : "Suggest patch ✦"}
+          </button>
+
+          {showPatch && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              className="mt-2 overflow-hidden"
+            >
+              <div className="mb-1 text-[10px] text-ink-dim">
+                {PATCHES[worst.mode].summary}
+              </div>
+              <div className="rounded border border-edge bg-bg p-2 font-mono text-[10px] leading-relaxed">
+                {PATCHES[worst.mode].diff.map((l, i) => (
+                  <div
+                    key={i}
+                    className={l.op === "+" ? "text-gn" : "text-rd line-through opacity-70"}
+                  >
+                    {l.op} {l.text}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard
+                    ?.writeText(
+                      PATCHES[worst.mode].diff
+                        .filter((l) => l.op === "+")
+                        .map((l) => l.text)
+                        .join("\n"),
+                    )
+                    .catch(() => {});
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+                className="mt-1.5 rounded border border-edge-bright px-2 py-0.5 text-[10px] text-ink-dim hover:text-ink"
+              >
+                {copied ? "✓ copied" : "copy additions"}
+              </button>
+            </motion.div>
+          )}
         </motion.div>
       )}
+
+      {/* ── burn tracker ────────────────────────────────── */}
+      <div className="rounded-lg border border-edge bg-panel2 p-4">
+        <h3 className="mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
+          Resource Burn <span className="normal-case">(simulated)</span>
+        </h3>
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="rounded border border-edge-bright py-1.5">
+            <div className="text-sm font-bold tabular-nums">
+              {totalTokens.toLocaleString("en-IN")}
+            </div>
+            <div className="text-[9px] tracking-wider text-ink-dim uppercase">
+              tokens spent
+            </div>
+          </div>
+          <div className="rounded border border-rd/30 bg-rd/[0.06] py-1.5">
+            <div className="text-sm font-bold text-rd tabular-nums">
+              {fmtINR(tokensToINR(wastedTokens))}
+            </div>
+            <div className="text-[9px] tracking-wider text-ink-dim uppercase">
+              burned on failures
+            </div>
+          </div>
+        </div>
+        {worstBurn && (
+          <div className="mt-2 text-[10px] text-ink-dim">
+            worst burner:{" "}
+            <span className="text-ink">{worstBurn.title}</span> —{" "}
+            {runTokens(runs[worstBurn.id].steps).toLocaleString("en-IN")} tokens (
+            {fmtINR(tokensToINR(runTokens(runs[worstBurn.id].steps)))})
+          </div>
+        )}
+      </div>
 
       {/* ── regression chart ────────────────────────────── */}
       <div className="rounded-lg border border-edge bg-panel2 p-4">

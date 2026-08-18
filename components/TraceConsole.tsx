@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fmtINR, runTokens, tokensToINR } from "@/lib/burn";
 import { RunState } from "@/lib/runner";
 import { ResolvedStep, Scenario } from "@/lib/types";
 
@@ -125,6 +126,12 @@ export default function TraceConsole({
           )}
           {run?.status === "idle" && (
             <div className="text-ink-dim">— not run yet —</div>
+          )}
+          {run?.done && (
+            <div className="mt-2 border-t border-edge pt-1 text-[10px] text-ink-dim">
+              run cost: {runTokens(steps).toLocaleString("en-IN")} tokens ≈{" "}
+              {fmtINR(tokensToINR(runTokens(steps)))} (simulated)
+            </div>
           )}
         </>
       )}
