@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { RunStatus } from "@/lib/runner";
-import { Category, Scenario } from "@/lib/types";
+import { Category, FailureMode, MODE_LABEL, Scenario } from "@/lib/types";
 
 const CATEGORY_STYLES: Record<Category, string> = {
   "Happy Path": "border-gn/40 text-gn",
@@ -12,94 +12,117 @@ const CATEGORY_STYLES: Record<Category, string> = {
   Accuracy: "border-edge-bright text-ink-dim",
 };
 
-const DOT: Record<RunStatus, string> = {
-  idle: "bg-ink-dim/40",
-  running: "bg-am pulse-dot",
-  pass: "bg-gn",
-  fail: "bg-rd",
-};
-
 export default function ScenarioCard({
   scenario,
   status,
+  failureMode,
   selected,
+  index,
   onClick,
 }: {
   scenario: Scenario;
   status: RunStatus;
+  failureMode?: FailureMode | null;
   selected: boolean;
+  /** grid position, drives the entrance cascade */
+  index: number;
   onClick: () => void;
 }) {
   const frame =
     status === "running"
-      ? "border-am/60 pulse-amber"
+      ? "running-pulse border-cy/60"
       : status === "pass"
-        ? "border-gn/50 bg-gn/[0.07]"
+        ? "border-[color-mix(in_srgb,var(--pass)_40%,transparent)]"
         : status === "fail"
-          ? "border-rd/50 bg-rd/[0.07] fail-ripple"
+          ? "fail-shake border-[color-mix(in_srgb,var(--fail)_55%,transparent)]"
           : "border-edge hover:border-edge-bright";
+
+  const statusLabel =
+    status === "idle"
+      ? "Queued"
+      : status === "running"
+        ? "Running"
+        : status === "pass"
+          ? "Pass"
+          : failureMode
+            ? `Fail — ${MODE_LABEL[failureMode]}`
+            : "Fail";
 
   return (
     <motion.button
-      layout
       onClick={onClick}
-      animate={status === "fail" ? { x: [0, -5, 5, -4, 4, -2, 0] } : { x: 0 }}
-      transition={{ duration: 0.3 }}
-      className={`relative rounded-lg border bg-panel2 p-3 text-left transition-colors ${frame} ${
-        selected ? "ring-1 ring-cy/60" : ""
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03, duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+      className={`relative rounded-md border bg-panel2 p-3 text-left transition-colors duration-220 ${frame} ${
+        selected ? "ring-1 ring-cy/50" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="text-xs leading-snug font-semibold">{scenario.title}</span>
+        <span className="text-[13px] leading-snug font-medium">{scenario.title}</span>
+
         {status === "pass" ? (
           <svg viewBox="0 0 24 24" className="mt-0.5 h-3.5 w-3.5 shrink-0">
             <path
               d="M5 13l4 4L19 7"
               fill="none"
-              stroke="var(--green)"
+              stroke="var(--pass)"
               strokeWidth="3"
               strokeLinecap="round"
               className="check-draw"
             />
           </svg>
         ) : status === "fail" ? (
-          <span className="mt-0.5 text-[11px] leading-none font-bold text-rd">✕</span>
+          <span className="dot-ripple mt-1 h-2 w-2 shrink-0 rounded-full bg-rd" />
+        ) : status === "running" ? (
+          <span className="dots mt-0.5 shrink-0 font-mono text-[11px] text-cy">
+            <span>·</span>
+            <span>·</span>
+            <span>·</span>
+          </span>
         ) : (
-          <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${DOT[status]}`} />
+          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-ink-dim/40" />
         )}
       </div>
+
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <span
-          className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold tracking-wider uppercase ${CATEGORY_STYLES[scenario.category]}`}
+          className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium tracking-[0.08em] uppercase ${CATEGORY_STYLES[scenario.category]}`}
         >
           {scenario.category}
         </span>
         {scenario.adversarial && (
-          <span className="rounded border border-rd/50 bg-rd/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-rd uppercase">
+          <span className="rounded-full border border-rd/50 bg-rd/10 px-1.5 py-0.5 text-[9px] font-medium tracking-[0.08em] text-rd uppercase">
             Adversarial
           </span>
         )}
         {scenario.generated && (
           <span
             title={scenario.rationale}
-            className="shimmer flex items-center gap-1 rounded border border-cy/40 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-cy uppercase"
+            className="shimmer flex items-center gap-1 rounded-full border border-cy/40 px-1.5 py-0.5 text-[9px] font-medium tracking-[0.08em] text-cy uppercase"
           >
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${
                 scenario.source === "live" ? "bg-cy" : "bg-ink-dim"
               }`}
-              title={scenario.source === "live" ? "generated live" : "bundled fallback"}
             />
-            ✦ AI-generated
+            AI-generated
           </span>
         )}
-        {status === "running" && (
-          <span className="dots ml-auto font-mono text-[10px] text-am">
-            <span>·</span>
-            <span>·</span>
-            <span>·</span>
-          </span>
-        )}
+      </div>
+
+      <div
+        className={`mt-1.5 text-[11px] ${
+          status === "fail"
+            ? "text-rd"
+            : status === "pass"
+              ? "text-gn"
+              : status === "running"
+                ? "text-cy"
+                : "text-ink-dim"
+        }`}
+      >
+        {statusLabel}
       </div>
     </motion.button>
   );

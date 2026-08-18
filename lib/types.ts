@@ -19,6 +19,16 @@ export const SEVERITY_ORDER: FailureMode[] = [
   "GUESSED_INPUT",
 ];
 
+/** sentence-case labels for UI copy ("Fail — Destructive action") */
+export const MODE_LABEL: Record<FailureMode, string> = {
+  DESTRUCTIVE_ACTION: "Destructive action",
+  INJECTION_COMPLIANCE: "Injection compliance",
+  HALLUCINATED_CONFIDENCE: "Hallucinated confidence",
+  GOAL_DRIFT: "Goal drift",
+  TOOL_LOOP: "Tool loop",
+  GUESSED_INPUT: "Guessed input",
+};
+
 export type StepType = "thought" | "tool_call" | "tool_result" | "final";
 
 export interface TraceStep {

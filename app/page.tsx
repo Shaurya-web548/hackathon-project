@@ -106,7 +106,7 @@ export default function Home() {
                 a.amount !== undefined
                   ? `₹${Number(a.amount).toLocaleString("en-IN")}`
                   : String(a.bookingId ?? "");
-              fireBanner(`⚠ Unconfirmed destructive action: ${step.tool}(${detail})`);
+              fireBanner(`Unconfirmed destructive action · ${step.tool}(${detail})`);
             }
           }
         },
@@ -190,103 +190,123 @@ export default function Home() {
   const selectedRun = selectedId ? (runs[selectedId] ?? idleRun()) : null;
   const doneCount = Object.values(runs).filter((r) => r.done).length;
 
+  const anyDone = Object.values(runs).some((r) => r.done);
+
   return (
     <div className="flex h-screen flex-col">
-      <div className="ambient-grid" aria-hidden />
-
-      {/* destructive-action banner */}
-      <AnimatePresence>
-        {banner && (
-          <motion.div
-            key={banner.id}
-            initial={{ y: -48, x: "-50%", opacity: 0 }}
-            animate={{ y: 12, x: "-50%", opacity: 1 }}
-            exit={{ y: -48, x: "-50%", opacity: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 22 }}
-            className="fixed top-0 left-1/2 z-50 rounded-lg border border-am/60 bg-[#2a2008] px-4 py-2 font-mono text-xs font-semibold text-am shadow-[0_0_24px_rgba(251,191,36,0.25)]"
-          >
-            {banner.text}
-          </motion.div>
-        )}
-      </AnimatePresence>
       {/* ── Header ─────────────────────────────────────────── */}
-      <header className="flex shrink-0 items-center gap-4 border-b border-edge bg-panel px-5 py-3">
-        <h1 className="text-lg font-bold tracking-tight whitespace-nowrap">
-          🔥 Crucible{" "}
-          <span className="font-normal text-ink-dim">— CI for AI Agents</span>
-        </h1>
+      <motion.header
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.22 }}
+        className="flex h-14 shrink-0 items-center gap-5 border-b border-edge bg-panel px-4"
+      >
+        <div className="leading-none">
+          <div className="font-display text-[17px] font-semibold tracking-[0.04em]">
+            CRUCIBLE
+          </div>
+          <div className="eyebrow mt-0.5 text-[9px]">CI for AI agents</div>
+        </div>
 
-        {/* honesty chip — always visible */}
-        <span className="hidden rounded-full border border-edge-bright bg-panel2 px-3 py-1 text-[11px] text-ink-dim md:inline-block">
-          Sandbox with mocked tools · Demo agent bundled · Bring your own agent
-          (roadmap)
-        </span>
+        {/* version selector — segmented control */}
+        <div
+          role="tablist"
+          aria-label="Agent version"
+          className="flex rounded border border-edge bg-bg p-0.5 text-xs"
+        >
+          {VERSIONS.map((v) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={version === v}
+              onClick={() => switchVersion(v)}
+              className="relative px-3 py-1 text-ink-dim transition-colors aria-selected:text-ink"
+            >
+              {version === v && (
+                <motion.span
+                  layoutId="seg-indicator"
+                  transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+                  className="absolute inset-0 rounded-[3px] bg-panel2 ring-1 ring-edge-bright"
+                />
+              )}
+              <span className="readout relative">{v}</span>
+            </button>
+          ))}
+        </div>
 
         <div className="ml-auto flex items-center gap-3">
-          <span className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+          {/* honesty chip — always visible, truncates before it hides */}
+          <span className="max-w-[38vw] truncate rounded-full border border-edge px-3 py-1 text-[11px] text-ink-dim">
+            Sandbox · mocked tools · demo agent bundled
+          </span>
+
+          <span
+            className="flex items-center gap-1.5 text-[11px] text-ink-dim"
+            title="Deterministic sandbox — no network"
+          >
             <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-gn" />
-            sandbox online
+            sandbox
           </span>
 
           <button
             onClick={() => setPresent((p) => !p)}
-            title="Toggle present mode (P) — hides the agent panel, enlarges the console"
-            className={`rounded-full border px-3 py-1 text-[11px] transition-colors ${
+            title="Present mode (P) — hides the agent panel, enlarges the console"
+            className={`rounded border px-2.5 py-1 text-[11px] transition-colors ${
               present
-                ? "border-cy/50 bg-cy/15 font-semibold text-cy"
-                : "border-edge-bright text-ink-dim hover:text-ink"
+                ? "border-cy/50 bg-cy/10 text-cy"
+                : "border-edge text-ink-dim hover:border-edge-bright hover:text-ink"
             }`}
           >
-            ▣ Present
+            Present
           </button>
 
-          <div className="flex overflow-hidden rounded-full border border-edge-bright text-xs">
-            {VERSIONS.map((v) => (
-              <button
-                key={v}
-                onClick={() => switchVersion(v)}
-                className={`px-3 py-1 transition-colors ${
-                  version === v
-                    ? "bg-cy/15 font-semibold text-cy"
-                    : "text-ink-dim hover:text-ink"
-                }`}
-              >
-                Agent {v}
-              </button>
-            ))}
-          </div>
+          <motion.button
+            onClick={startSuite}
+            disabled={suiteRunning}
+            whileTap={{ scale: 0.98 }}
+            className={`rounded px-4 py-1.5 text-[13px] font-medium transition-colors ${
+              suiteRunning
+                ? "cursor-default bg-panel2 text-ink-dim"
+                : "bg-cy text-[#0B0D10] hover:bg-[color-mix(in_srgb,var(--accent)_85%,white)]"
+            }`}
+          >
+            {suiteRunning
+              ? `Running ${scenarios.length} scenarios…`
+              : anyDone
+                ? "Run again"
+                : "Run suite"}
+          </motion.button>
         </div>
-      </header>
+      </motion.header>
 
       {/* ── Body: three columns ────────────────────────────── */}
       <main className="flex min-h-0 flex-1">
-        {/* LEFT — Agent Under Test (hidden in present mode) */}
-        <aside
+        {/* LEFT — Agent under test (hidden in present mode) */}
+        <motion.aside
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.08, duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
           className={`w-[300px] shrink-0 overflow-y-auto border-r border-edge bg-panel p-4 ${
             present ? "hidden" : ""
           }`}
         >
-          <h2 className="mb-3 text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
-            Agent Under Test
-          </h2>
-          <div className="glow-cyan rounded-lg border border-edge-bright bg-panel2 p-3">
-            <div className="text-sm font-semibold text-cy">{AGENT_NAME}</div>
-            <div className="mt-1 text-xs text-ink-dim">{AGENT_TAGLINE}</div>
+          <h2 className="eyebrow mb-3">Agent under test</h2>
+          <div className="rounded-md border border-edge bg-panel2 p-3">
+            <div className="text-sm font-medium text-ink">{AGENT_NAME}</div>
+            <div className="mt-0.5 text-xs text-ink-dim">{AGENT_TAGLINE}</div>
           </div>
 
-          <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
-            System Prompt <span className="normal-case">(editable)</span>
+          <h3 className="eyebrow mt-4 mb-2 text-[10px]">
+            System prompt <span className="normal-case">(editable)</span>
           </h3>
           <textarea
             value={agentPrompt}
             onChange={(e) => setAgentPrompt(e.target.value)}
             spellCheck={false}
-            className="h-48 w-full resize-y rounded-lg border border-edge bg-bg p-3 font-mono text-[11px] leading-relaxed text-ink-dim outline-none focus:border-cy/40"
+            className="h-48 w-full resize-y rounded-md border border-edge bg-bg p-3 font-mono text-[11px] leading-relaxed text-ink-dim outline-none focus:border-cy/40"
           />
 
-          <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
-            Tools ({TOOLS.length})
-          </h3>
+          <h3 className="eyebrow mt-4 mb-2 text-[10px]">Tools ({TOOLS.length})</h3>
           <div className="flex flex-wrap gap-1.5">
             {TOOLS.map((t) => {
               const flashing = toolFlash?.tool === t.name;
@@ -294,50 +314,69 @@ export default function Home() {
                 <span
                   // remount on each flash so the animation replays
                   key={t.name + (flashing ? `-${toolFlash.ts}` : "")}
-                  title={t.description}
-                  className={`rounded border px-2 py-1 font-mono text-[11px] ${
+                  title={t.destructive ? `${t.description} — destructive` : t.description}
+                  className={`flex items-center gap-1 rounded border px-2 py-1 font-mono text-[11px] ${
                     flashing ? "chip-flash" : ""
                   } ${
                     t.destructive
-                      ? "border-am/40 bg-am/10 text-am"
-                      : "border-edge-bright bg-panel2 text-ink"
+                      ? "border-am/40 text-am"
+                      : "border-edge bg-panel2 text-ink"
                   }`}
                 >
-                  {t.destructive && "⚠ "}
+                  {t.destructive && (
+                    <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 shrink-0" aria-label="destructive">
+                      <rect x="2.5" y="5" width="7" height="5.5" rx="1" fill="none" stroke="currentColor" />
+                      <path d="M4 5V3.5a2 2 0 0 1 4 0V5" fill="none" stroke="currentColor" />
+                    </svg>
+                  )}
                   {t.name}
                 </span>
               );
             })}
           </div>
-          <p className="mt-2 text-[10px] text-ink-dim">⚠ = destructive tool</p>
+          <p className="mt-2 text-[10px] text-ink-dim">lock = destructive tool</p>
 
-          <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
-            Tool Manifest <span className="normal-case">(editable — read by generation)</span>
+          <h3 className="eyebrow mt-4 mb-2 text-[10px]">
+            Tool manifest <span className="normal-case">(read by generation)</span>
           </h3>
           <textarea
             value={agentTools}
             onChange={(e) => setAgentTools(e.target.value)}
             spellCheck={false}
-            className="h-28 w-full resize-y rounded-lg border border-edge bg-bg p-3 font-mono text-[10px] leading-relaxed text-ink-dim outline-none focus:border-cy/40"
+            className="h-28 w-full resize-y rounded-md border border-edge bg-bg p-3 font-mono text-[10px] leading-relaxed text-ink-dim outline-none focus:border-cy/40"
           />
 
-          <h3 className="mt-4 mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
-            Suite · Agent {version}
-          </h3>
-          <div className="text-xs text-ink-dim">
+          <h3 className="eyebrow mt-4 mb-2 text-[10px]">Suite · {version}</h3>
+          <div className="readout text-xs text-ink-dim">
             {scenarios.length} scenarios ·{" "}
             {scenarios.filter((s) => s.adversarial).length} adversarial
           </div>
-        </aside>
+        </motion.aside>
 
         {/* CENTER — scenarios + trace console */}
-        <section className="flex min-w-0 flex-1 flex-col">
+        <section className="relative flex min-w-0 flex-1 flex-col">
+          {/* tripwire banner — drops from the top of this column */}
+          <AnimatePresence>
+            {banner && (
+              <motion.div
+                key={banner.id}
+                initial={{ y: -40, x: "-50%", opacity: 0 }}
+                animate={{ y: 8, x: "-50%", opacity: 1 }}
+                exit={{ y: -40, x: "-50%", opacity: 0 }}
+                transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+                className="absolute top-0 left-1/2 z-40 rounded-md border border-am/50 bg-panel2 px-4 py-2 font-mono text-xs text-am"
+              >
+                {banner.text}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
-                Test Scenarios
+              <h2 className="eyebrow">
+                Test scenarios
                 {doneCount > 0 && (
-                  <span className="ml-2 normal-case">
+                  <span className="readout ml-2 normal-case">
                     {doneCount}/{scenarios.length} complete
                   </span>
                 )}
@@ -374,24 +413,24 @@ export default function Home() {
                 {/* chaos toggle */}
                 <button
                   onClick={() => !suiteRunning && setChaos((c) => !c)}
-                  title="Chaos engineering: deterministically inject 503s + latency into mocked tools mid-run"
-                  className={`rounded border px-3 py-1.5 text-xs font-bold tracking-wide transition-colors ${
+                  title="Chaos: deterministically inject 503s + latency into mocked tools mid-run"
+                  className={`rounded border px-3 py-1.5 text-xs transition-colors ${
                     chaos
-                      ? "border-am/60 bg-am/15 text-am shadow-[0_0_12px_rgba(251,191,36,0.25)]"
-                      : "border-edge-bright text-ink-dim hover:border-am/50 hover:text-am"
+                      ? "border-am/50 bg-am/10 text-am"
+                      : "border-edge text-ink-dim hover:border-edge-bright hover:text-ink"
                   }`}
                 >
-                  ☢ CHAOS {chaos ? "ON" : "OFF"}
+                  Chaos {chaos ? "on" : "off"}
                 </button>
 
                 <button
                   onClick={generate}
                   disabled={genState === "loading" || suiteRunning}
-                  title="Generate 4 new adversarial scenarios from the agent panel (falls back to bundled ones offline)"
-                  className={`flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-bold tracking-wide transition-colors ${
+                  title="Generate 4 new adversarial scenarios from the agent panel (bundled fallback offline)"
+                  className={`flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs transition-colors ${
                     genState === "loading"
                       ? "shimmer cursor-default border-cy/40 text-cy"
-                      : "border-edge-bright text-ink-dim hover:border-cy/50 hover:text-cy"
+                      : "border-edge text-ink-dim hover:border-edge-bright hover:text-ink"
                   }`}
                 >
                   {genState !== "idle" && genState !== "loading" && (
@@ -401,30 +440,21 @@ export default function Home() {
                       }`}
                     />
                   )}
-                  {genState === "loading" ? "GENERATING ✦" : "GENERATE SCENARIOS ✦"}
-                </button>
-                <button
-                  onClick={startSuite}
-                  disabled={suiteRunning}
-                  className={`rounded border px-4 py-1.5 text-xs font-bold tracking-wide transition-colors ${
-                    suiteRunning
-                      ? "cursor-default border-am/40 bg-am/10 text-am"
-                      : "border-cy/50 bg-cy/10 text-cy hover:bg-cy/20"
-                  }`}
-                >
-                  {suiteRunning ? "RUNNING···" : "RUN SUITE ▶"}
+                  {genState === "loading" ? "Generating…" : "Generate scenarios"}
                 </button>
               </div>
             </div>
 
-            <div className="relative grid grid-cols-2 gap-2.5 xl:grid-cols-3">
+            <div className="relative grid grid-cols-2 gap-2 xl:grid-cols-3">
               {scanKey > 0 && <div key={scanKey} className="scanline" />}
-              {scenarios.map((s) => (
+              {scenarios.map((s, i) => (
                 <ScenarioCard
                   key={s.id}
                   scenario={s}
                   status={(runs[s.id] ?? idleRun()).status}
+                  failureMode={runs[s.id]?.failureMode}
                   selected={s.id === selectedId}
+                  index={i}
                   onClick={() => {
                     pinnedRef.current = true;
                     setSelectedId(s.id);
@@ -434,25 +464,29 @@ export default function Home() {
             </div>
           </div>
 
-          <div
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5, duration: 0.4 }}
             className={`flex shrink-0 flex-col border-t border-edge bg-panel p-4 ${
-              present ? "h-[52%]" : "h-[38%]"
+              present ? "h-[60%]" : "h-[40%]"
             }`}
           >
-            <h2 className="mb-2 shrink-0 text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
-              Trace Console
-            </h2>
+            <h2 className="eyebrow mb-2 shrink-0">Trace console</h2>
             <div className="min-h-0 flex-1">
               <TraceConsole scenario={selected} run={selectedRun} />
             </div>
-          </div>
+          </motion.div>
         </section>
 
-        {/* RIGHT — Reliability Scorecard */}
-        <aside className="w-[360px] shrink-0 overflow-y-auto border-l border-edge bg-panel p-4">
-          <h2 className="mb-3 text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
-            Reliability Scorecard
-          </h2>
+        {/* RIGHT — Reliability scorecard */}
+        <motion.aside
+          initial={{ opacity: 0, x: 8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.16, duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+          className="w-[360px] shrink-0 overflow-y-auto border-l border-edge bg-panel p-4"
+        >
+          <h2 className="eyebrow mb-3">Reliability scorecard</h2>
           <Scorecard
             scenarios={scenarios}
             runs={runs}
@@ -460,7 +494,7 @@ export default function Home() {
             history={history}
             lastRecorded={lastRecorded}
           />
-        </aside>
+        </motion.aside>
       </main>
     </div>
   );

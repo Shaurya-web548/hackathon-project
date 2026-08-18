@@ -20,7 +20,7 @@ import { PATCHES } from "@/data/patches";
 import { RunState } from "@/lib/runner";
 import {
   AgentVersion,
-  FailureMode,
+  MODE_LABEL,
   Scenario,
   SEVERITY_ORDER,
   VERSIONS,
@@ -28,7 +28,7 @@ import {
 
 function useSpringNumber(target: number) {
   const mv = useMotionValue(0);
-  const spring = useSpring(mv, { stiffness: 70, damping: 18 });
+  const spring = useSpring(mv, { stiffness: 60, damping: 18 });
   const [val, setVal] = useState(0);
   useEffect(() => {
     mv.set(target);
@@ -38,16 +38,7 @@ function useSpringNumber(target: number) {
 }
 
 const scoreColor = (n: number) =>
-  n < 40 ? "var(--red)" : n < 75 ? "var(--amber)" : "var(--green)";
-
-const MODE_LABEL: Record<FailureMode, string> = {
-  DESTRUCTIVE_ACTION: "Destructive action",
-  INJECTION_COMPLIANCE: "Injection compliance",
-  HALLUCINATED_CONFIDENCE: "Hallucinated confidence",
-  GOAL_DRIFT: "Goal drift",
-  TOOL_LOOP: "Tool loop",
-  GUESSED_INPUT: "Guessed input",
-};
+  n < 40 ? "var(--fail)" : n < 75 ? "var(--warn)" : "var(--pass)";
 
 export default function Scorecard({
   scenarios,
@@ -111,10 +102,20 @@ export default function Scorecard({
   return (
     <div className="flex flex-col gap-4">
       {/* ── score gauge ─────────────────────────────────── */}
-      <div className="flex flex-col items-center rounded-lg border border-edge bg-panel2 p-4">
-        <div className="relative h-[128px] w-[128px]">
+      <div className="flex flex-col items-center rounded-md border border-edge bg-panel2 p-4">
+        {finished.length === 0 && (
+          <p className="mb-2 text-center text-xs text-ink-dim">
+            No results yet. Run the suite to score this agent version.
+          </p>
+        )}
+        <div
+          key={finished.length === scenarios.length ? "settled" : "live"}
+          className={`relative h-[128px] w-[128px] ${
+            finished.length === scenarios.length && finished.length > 0 ? "gauge-settle" : ""
+          }`}
+        >
           <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90">
-            <circle cx="64" cy="64" r={R} fill="none" stroke="var(--border)" strokeWidth="8" />
+            <circle cx="64" cy="64" r={R} fill="none" stroke="var(--line)" strokeWidth="8" />
             <circle
               cx="64"
               cy="64"
@@ -125,17 +126,18 @@ export default function Scorecard({
               strokeLinecap="round"
               strokeDasharray={C}
               strokeDashoffset={C * (1 - shown / 100)}
-              style={{ transition: "stroke 0.4s" }}
+              style={{ transition: "stroke 400ms, stroke-dashoffset 900ms var(--ease-enter)" }}
             />
           </svg>
           <div className="absolute inset-0 grid place-items-center">
             <div className="text-center">
-              <div className="text-3xl font-bold tabular-nums" style={{ color }}>
+              <div
+                className="font-display readout text-4xl font-semibold"
+                style={{ color }}
+              >
                 {shown}
               </div>
-              <div className="text-[9px] tracking-widest text-ink-dim uppercase">
-                reliability
-              </div>
+              <div className="eyebrow text-[9px]">reliability</div>
             </div>
           </div>
         </div>
@@ -161,10 +163,8 @@ export default function Scorecard({
       </div>
 
       {/* ── taxonomy breakdown ──────────────────────────── */}
-      <div className="rounded-lg border border-edge bg-panel2 p-4">
-        <h3 className="mb-3 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
-          Failure Taxonomy
-        </h3>
+      <div className="rounded-md border border-edge bg-panel2 p-4">
+        <h3 className="eyebrow mb-3 text-[10px]">Failure taxonomy</h3>
         <div className="flex flex-col gap-2">
           {byMode.map(({ mode, scenarios: list }, i) => (
             <div
@@ -182,7 +182,7 @@ export default function Scorecard({
                   className="h-full rounded bg-rd"
                   initial={{ width: 0 }}
                   animate={{ width: `${(list.length / maxCount) * 100}%` }}
-                  transition={{ type: "spring", stiffness: 60, damping: 16, delay: i * 0.07 }}
+                  transition={{ type: "spring", stiffness: 60, damping: 16, delay: i * 0.06 }}
                 />
               </div>
             </div>
@@ -195,10 +195,10 @@ export default function Scorecard({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-lg border border-rd/40 bg-rd/[0.07] p-4"
+          className="rounded-md border border-rd/40 bg-rd/[0.07] p-4"
         >
-          <h3 className="mb-1 text-[10px] font-semibold tracking-widest text-rd uppercase">
-            ☠ Worst Offender
+          <h3 className="mb-1 text-[10px] font-medium tracking-[0.08em] text-rd uppercase">
+            Worst offender
           </h3>
           <div className="text-sm font-semibold">{worst.scenarios[0].title}</div>
           <div className="mt-0.5 font-mono text-[11px] text-rd">
@@ -259,7 +259,7 @@ export default function Scorecard({
       )}
 
       {/* ── burn tracker ────────────────────────────────── */}
-      <div className="rounded-lg border border-edge bg-panel2 p-4">
+      <div className="rounded-md border border-edge bg-panel2 p-4">
         <h3 className="mb-2 text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
           Resource Burn <span className="normal-case">(simulated)</span>
         </h3>
@@ -292,22 +292,25 @@ export default function Scorecard({
       </div>
 
       {/* ── regression chart ────────────────────────────── */}
-      <div className="rounded-lg border border-edge bg-panel2 p-4">
+      <div className="rounded-md border border-edge bg-panel2 p-4">
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-[10px] font-semibold tracking-widest text-ink-dim uppercase">
             Score by Version
           </h3>
           {delta !== null && (
-            <span
-              className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+            <motion.span
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+              className={`readout rounded-full border px-2 py-0.5 font-mono text-[10px] ${
                 delta >= 0
                   ? "border-gn/40 bg-gn/10 text-gn"
                   : "border-rd/40 bg-rd/10 text-rd"
               }`}
             >
-              {delta >= 0 ? "▲ +" : "▼ "}
+              {delta >= 0 ? "+" : ""}
               {delta} vs {VERSIONS[vIdx - 1]}
-            </span>
+            </motion.span>
           )}
         </div>
         <div className="h-36">
