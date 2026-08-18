@@ -168,7 +168,8 @@ export default function TraceConsole({
   const boxRef = useRef<HTMLDivElement>(null);
   const [scrub, setScrub] = useState<number | null>(null);
   const [flash, setFlash] = useState(0);
-  const steps = run?.steps ?? [];
+  const runSteps = run?.steps;
+  const steps = useMemo(() => runSteps ?? [], [runSteps]);
   const running = run?.status === "running";
 
   const tripwires = useMemo(() => tripwireIndexes(steps), [steps]);

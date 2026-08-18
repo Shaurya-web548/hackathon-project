@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { AGENT_NAME, AGENT_TAGLINE, SYSTEM_PROMPT, TOOLS } from "@/data/demoAgent";
 import { FALLBACK_GENERATED } from "@/data/fallbackGenerated";
@@ -133,6 +134,20 @@ export default function Home() {
   // abort any in-flight suite on unmount
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  // ?present=1 and ?autoplay=1 (the landing page's "Watch a 60s run")
+  const autoplayed = useRef(false);
+  const startSuiteRef = useRef(startSuite);
+  startSuiteRef.current = startSuite;
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("present") === "1") setPresent(true);
+    if (params.get("autoplay") === "1" && !autoplayed.current) {
+      autoplayed.current = true;
+      const t = setTimeout(() => startSuiteRef.current(), 900);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
   const generate = async () => {
     if (genState === "loading" || suiteRunning) return;
     setGenState("loading");
@@ -201,12 +216,12 @@ export default function Home() {
         transition={{ duration: 0.22 }}
         className="flex h-14 shrink-0 items-center gap-5 border-b border-edge bg-panel px-4"
       >
-        <div className="leading-none">
+        <Link href="/" className="leading-none" title="Back to the front page">
           <div className="font-display text-[17px] font-semibold tracking-[0.04em]">
             CRUCIBLE
           </div>
           <div className="eyebrow mt-0.5 text-[9px]">CI for AI agents</div>
-        </div>
+        </Link>
 
         {/* version selector — segmented control */}
         <div
