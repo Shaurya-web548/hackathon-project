@@ -1,13 +1,76 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AGENT_NAME, AGENT_TAGLINE, SYSTEM_PROMPT, TOOLS } from "@/data/demoAgent";
 import { getScenarios } from "@/data/scenarios";
-import { AgentVersion, VERSIONS } from "@/lib/types";
+import { runScenario } from "@/lib/sandbox";
+import { RunState, idleRun, runSuite } from "@/lib/runner";
+import { AgentVersion, Scenario, VERSIONS } from "@/lib/types";
+import ScenarioCard from "@/components/ScenarioCard";
+import TraceConsole from "@/components/TraceConsole";
 
 export default function Home() {
   const [version, setVersion] = useState<AgentVersion>("v1.0");
-  const scenarios = getScenarios(version);
+  const [scenarios, setScenarios] = useState<Scenario[]>(() => getScenarios("v1.0"));
+  const [runs, setRuns] = useState<Record<string, RunState>>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [suiteRunning, setSuiteRunning] = useState(false);
+  /** user clicked a card — stop auto-following the newest run */
+  const pinnedRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const switchVersion = (v: AgentVersion) => {
+    abortRef.current?.abort();
+    setVersion(v);
+    setScenarios(getScenarios(v));
+    setRuns({});
+    setSelectedId(null);
+    setSuiteRunning(false);
+    pinnedRef.current = false;
+  };
+
+  const startSuite = useCallback(() => {
+    if (suiteRunning) return;
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    pinnedRef.current = false;
+    setRuns(Object.fromEntries(scenarios.map((s) => [s.id, idleRun()])));
+    setSelectedId(null);
+    setSuiteRunning(true);
+
+    runSuite(
+      scenarios,
+      runScenario,
+      {
+        onStart: (s) => {
+          setRuns((prev) => ({ ...prev, [s.id]: { ...idleRun(), status: "running" } }));
+          if (!pinnedRef.current) setSelectedId(s.id);
+        },
+        onStep: (s, step) => {
+          setRuns((prev) => ({
+            ...prev,
+            [s.id]: { ...prev[s.id], steps: [...prev[s.id].steps, step] },
+          }));
+        },
+        onFinish: (s, steps) => {
+          setRuns((prev) => ({
+            ...prev,
+            [s.id]: { status: s.verdict, steps, done: true },
+          }));
+        },
+        onSuiteDone: () => setSuiteRunning(false),
+      },
+      ctrl.signal,
+    );
+  }, [scenarios, suiteRunning]);
+
+  // abort any in-flight suite on unmount
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const selected = scenarios.find((s) => s.id === selectedId) ?? null;
+  const selectedRun = selectedId ? (runs[selectedId] ?? idleRun()) : null;
+  const doneCount = Object.values(runs).filter((r) => r.done).length;
 
   return (
     <div className="flex h-screen flex-col">
@@ -25,18 +88,16 @@ export default function Home() {
         </span>
 
         <div className="ml-auto flex items-center gap-3">
-          {/* sandbox status */}
           <span className="flex items-center gap-1.5 text-[11px] text-ink-dim">
             <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-gn" />
             sandbox online
           </span>
 
-          {/* version selector */}
           <div className="flex overflow-hidden rounded-full border border-edge-bright text-xs">
             {VERSIONS.map((v) => (
               <button
                 key={v}
-                onClick={() => setVersion(v)}
+                onClick={() => switchVersion(v)}
                 className={`px-3 py-1 transition-colors ${
                   version === v
                     ? "bg-cy/15 font-semibold text-cy"
@@ -101,26 +162,51 @@ export default function Home() {
 
         {/* CENTER — scenarios + trace console */}
         <section className="flex min-w-0 flex-1 flex-col">
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
                 Test Scenarios
+                {doneCount > 0 && (
+                  <span className="ml-2 normal-case">
+                    {doneCount}/{scenarios.length} complete
+                  </span>
+                )}
               </h2>
-              <button className="cursor-not-allowed rounded border border-edge-bright bg-panel2 px-4 py-1.5 text-xs font-semibold text-ink-dim">
-                RUN SUITE ▶
+              <button
+                onClick={startSuite}
+                disabled={suiteRunning}
+                className={`rounded border px-4 py-1.5 text-xs font-bold tracking-wide transition-colors ${
+                  suiteRunning
+                    ? "cursor-default border-am/40 bg-am/10 text-am"
+                    : "border-cy/50 bg-cy/10 text-cy hover:bg-cy/20"
+                }`}
+              >
+                {suiteRunning ? "RUNNING···" : "RUN SUITE ▶"}
               </button>
             </div>
-            <div className="grid place-items-center rounded-lg border border-dashed border-edge py-16 text-xs text-ink-dim">
-              Scenario grid — Stage 3
+
+            <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-3">
+              {scenarios.map((s) => (
+                <ScenarioCard
+                  key={s.id}
+                  scenario={s}
+                  status={(runs[s.id] ?? idleRun()).status}
+                  selected={s.id === selectedId}
+                  onClick={() => {
+                    pinnedRef.current = true;
+                    setSelectedId(s.id);
+                  }}
+                />
+              ))}
             </div>
           </div>
 
-          <div className="h-[38%] shrink-0 border-t border-edge bg-panel p-4">
-            <h2 className="mb-2 text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
+          <div className="flex h-[38%] shrink-0 flex-col border-t border-edge bg-panel p-4">
+            <h2 className="mb-2 shrink-0 text-[11px] font-semibold tracking-widest text-ink-dim uppercase">
               Trace Console
             </h2>
-            <div className="h-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-edge bg-bg p-3 font-mono text-xs text-ink-dim">
-              <span className="text-cy">crucible</span>@sandbox:~$ awaiting run…
+            <div className="min-h-0 flex-1">
+              <TraceConsole scenario={selected} run={selectedRun} />
             </div>
           </div>
         </section>
