@@ -3,17 +3,21 @@
 /* ── design tokens: the instrument panel ─────────────────── */
 
 :root {
-  --bg-0: #0b0d10; /* page — near-black with a hint of blue */
-  --bg-1: #12151a; /* panels */
-  --bg-2: #1a1f26; /* raised surfaces, hover */
-  --line: #262c35; /* hairline borders */
-  --line-2: #323a46; /* brighter hairline (focus/hover edges) */
-  --text-1: #e8ebef;
-  --text-2: #8a94a3;
-  --pass: #3ddc97;
-  --fail: #ff5c5c;
-  --warn: #ffb020; /* the tripwire colour — reserved */
-  --accent: #5da9ff;
+  /* burgundy & black: two chromatic colours in the whole app —
+     the burgundy family (brand / interactive / failure) and a
+     reserved gold (tripwire / caution). Pass is neutral ivory:
+     colour only appears when something demands attention. */
+  --bg-0: #0b0709; /* page — near-black with a warm hint */
+  --bg-1: #140d10; /* panels */
+  --bg-2: #1c1216; /* raised surfaces, hover */
+  --line: #2b1d23; /* hairline borders */
+  --line-2: #3b2932; /* brighter hairline (focus/hover edges) */
+  --text-1: #f0e7e1; /* warm ivory ink */
+  --text-2: #a18d93;
+  --pass: #f0e7e1; /* neutral — a pass is calm */
+  --fail: #d14f66; /* bright burgundy */
+  --warn: #d8a24a; /* gold — the tripwire colour, reserved */
+  --accent: #b8495c; /* burgundy — interactive, running, tool calls */
 
   /* motion */
   --ease-enter: cubic-bezier(0.2, 0.8, 0.2, 1);

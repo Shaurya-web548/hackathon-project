@@ -170,7 +170,7 @@ export default function Landing() {
             >
               <Link
                 href="/lab"
-                className="rounded bg-cy px-5 py-2 text-[14px] font-medium text-[#0B0D10] transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_85%,white)]"
+                className="rounded bg-cy px-5 py-2 text-[14px] font-medium text-[#F5EDE8] transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_88%,white)]"
               >
                 Open the lab
               </Link>

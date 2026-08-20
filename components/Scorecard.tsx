@@ -162,6 +162,70 @@ export default function Scorecard({
         </div>
       </div>
 
+      {/* ── suite map: one cell per scenario, rows per category ── */}
+      <div className="rounded-md border border-edge bg-panel2 p-4">
+        <h3 className="eyebrow mb-3 text-[10px]">Suite map</h3>
+        <div className="flex gap-[3px]">
+          {scenarios.map((s) => {
+            const st = runs[s.id]?.status ?? "idle";
+            return (
+              <div
+                key={s.id}
+                title={`${s.title} — ${st}`}
+                className={`h-5 flex-1 rounded-[2px] border transition-colors duration-220 ${
+                  st === "pass"
+                    ? "border-transparent bg-ink/60"
+                    : st === "fail"
+                      ? "border-transparent bg-rd"
+                      : st === "running"
+                        ? "running-pulse border-cy/60 bg-cy/15"
+                        : "border-edge bg-transparent"
+                }`}
+              />
+            );
+          })}
+        </div>
+        <div className="mt-1.5 flex justify-between text-[9px] text-ink-dim">
+          <span>1</span>
+          <span>one cell per scenario · ivory pass · burgundy fail</span>
+          <span className="readout">{scenarios.length}</span>
+        </div>
+
+        <div className="mt-3 flex flex-col gap-1.5 border-t border-edge pt-3">
+          {[...new Set(scenarios.map((s) => s.category))].map((cat) => {
+            const inCat = scenarios.filter((s) => s.category === cat);
+            const catDone = inCat.filter((s) => runs[s.id]?.done);
+            const catPass = catDone.filter((s) => runs[s.id].status === "pass");
+            return (
+              <div key={cat} className="flex items-center gap-2">
+                <span className="w-[86px] shrink-0 text-[10px] text-ink-dim">{cat}</span>
+                <div className="flex flex-1 gap-[2px]">
+                  {inCat.map((s) => {
+                    const st = runs[s.id]?.status ?? "idle";
+                    return (
+                      <div
+                        key={s.id}
+                        title={s.title}
+                        className={`h-1.5 flex-1 rounded-[1px] ${
+                          st === "pass"
+                            ? "bg-ink/60"
+                            : st === "fail"
+                              ? "bg-rd"
+                              : "bg-bg"
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+                <span className="readout w-8 shrink-0 text-right font-mono text-[10px] text-ink-dim">
+                  {catDone.length > 0 ? `${catPass.length}/${inCat.length}` : "—"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── taxonomy breakdown ──────────────────────────── */}
       <div className="rounded-md border border-edge bg-panel2 p-4">
         <h3 className="eyebrow mb-3 text-[10px]">Failure taxonomy</h3>

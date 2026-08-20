@@ -296,7 +296,7 @@ export default function Home() {
             className={`rounded px-4 py-1.5 text-[13px] font-medium transition-colors ${
               suiteRunning
                 ? "cursor-default bg-panel2 text-ink-dim"
-                : "bg-cy text-[#0B0D10] hover:bg-[color-mix(in_srgb,var(--accent)_85%,white)]"
+                : "bg-cy text-[#F5EDE8] hover:bg-[color-mix(in_srgb,var(--accent)_88%,white)]"
             }`}
           >
             {suiteRunning
