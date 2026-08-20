@@ -6,6 +6,14 @@ renders a Reliability Scorecard with version-over-version regression tracking.
 
 > Sandbox with mocked tools · Demo agent bundled · Bring your own agent (roadmap)
 
+**Live demo:** https://shaurya-web548.github.io/hackathon-project/ · lab at
+[/lab](https://shaurya-web548.github.io/hackathon-project/lab) ·
+projector autoplay via `?present=1&autoplay=1`.
+
+Visual identity: burgundy & black instrument panel — two chromatic colours
+(burgundy = active/failure, reserved gold = tripwire); a pass stays neutral
+ivory, so colour on screen always means something demands attention.
+
 ## Run
 
 ```bash
@@ -15,7 +23,7 @@ npm run dev   # http://localhost:3000
 
 The entire core demo is **offline** — zero network calls. The only optional network
 feature is GENERATE SCENARIOS ✦ (Gemini); without a key or connectivity it silently
-reveals bundled fallback scenarios (grey dot = fallback, cyan = live). To enable live
+reveals bundled fallback scenarios (grey dot = fallback, burgundy = live). To enable live
 generation, copy `.env.local.example` to `.env.local` and set `GEMINI_API_KEY`.
 
 ## Extra weapons
