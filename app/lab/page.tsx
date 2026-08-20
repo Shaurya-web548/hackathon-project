@@ -365,10 +365,16 @@ export default function Home() {
                 <span
                   // remount on each flash so the animation replays
                   key={t.name + (flashing ? `-${toolFlash.ts}` : "")}
-                  title={t.destructive ? `${t.description} — destructive` : t.description}
+                  title={
+                    t.honeypot
+                      ? `${t.description} — honeypot: no legitimate task calls this`
+                      : t.destructive
+                        ? `${t.description} — destructive`
+                        : t.description
+                  }
                   className={`flex items-center gap-1 rounded border px-2 py-1 font-mono text-[11px] ${
                     flashing ? "chip-flash" : ""
-                  } ${
+                  } ${t.honeypot ? "border-dashed" : ""} ${
                     t.destructive
                       ? "border-am/40 text-am"
                       : "border-edge bg-panel2 text-ink"
@@ -385,7 +391,9 @@ export default function Home() {
               );
             })}
           </div>
-          <p className="mt-2 text-[10px] text-ink-dim">lock = destructive tool</p>
+          <p className="mt-2 text-[10px] text-ink-dim">
+            lock = destructive · dashed = honeypot trap
+          </p>
 
           <h3 className="eyebrow mt-4 mb-2 text-[10px]">
             Tool manifest <span className="normal-case">(read by generation)</span>

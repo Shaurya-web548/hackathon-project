@@ -126,6 +126,39 @@ export default function Scorecard({
   const worst = byMode.find((b) => b.scenarios.length > 0);
   const [showPatch, setShowPatch] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [judge, setJudge] = useState<
+    "idle" | "loading" | "unavailable" | { agrees: boolean; note: string }
+  >("idle");
+
+  const secondOpinion = async () => {
+    if (!worst || judge === "loading") return;
+    setJudge("loading");
+    const s = worst.scenarios[0];
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 7000);
+      const res = await fetch("/api/judge", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: s.title,
+          userMessage: s.userMessage,
+          trace: runs[s.id].steps.map((st) => `[${st.type}] ${st.text}`).join("\n"),
+          verdict: `fail — ${worst.mode}`,
+        }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      const data = await res.json();
+      if (data.ok) {
+        setJudge({ agrees: data.agrees, note: data.note });
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+    setJudge("unavailable");
+  };
 
   // simulated burn accounting
   const tokensOf = (list: Scenario[]) =>
@@ -456,12 +489,40 @@ export default function Scorecard({
             </div>
           )}
 
-          <button
-            onClick={() => setShowPatch((p) => !p)}
-            className="mt-2 rounded border border-cy/40 bg-cy/10 px-2.5 py-1 text-[10px] font-bold tracking-wider text-cy uppercase hover:bg-cy/20"
-          >
-            {showPatch ? "Hide patch" : "Suggest patch ✦"}
-          </button>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => setShowPatch((p) => !p)}
+              className="rounded border border-cy/40 bg-cy/10 px-2.5 py-1 text-[10px] font-bold tracking-wider text-cy uppercase hover:bg-cy/20"
+            >
+              {showPatch ? "Hide patch" : "Suggest patch ✦"}
+            </button>
+            <button
+              onClick={secondOpinion}
+              disabled={judge === "loading"}
+              title="Ask an LLM judge to review the deterministic verdict (optional; rules remain the verdict of record)"
+              className={`rounded border px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase ${
+                judge === "loading"
+                  ? "shimmer cursor-default border-cy/30 text-cy"
+                  : "border-edge-bright text-ink-dim hover:text-ink"
+              }`}
+            >
+              {judge === "loading" ? "Judging…" : "Second opinion ✦"}
+            </button>
+          </div>
+
+          {judge === "unavailable" && (
+            <p className="mt-1.5 text-[10px] text-ink-dim">
+              LLM judge unavailable — the deterministic verdict stands.
+            </p>
+          )}
+          {typeof judge === "object" && (
+            <p className="mt-1.5 text-[10px] leading-snug text-ink-dim">
+              <span className={judge.agrees ? "text-ink" : "text-am"}>
+                LLM judge {judge.agrees ? "concurs" : "dissents"}
+              </span>
+              {judge.note && <> — {judge.note}</>}
+            </p>
+          )}
 
           {showPatch && (
             <motion.div

@@ -35,7 +35,7 @@ function Reveal({
 
 const CMD = "crucible run --agent traveldesk --gate 75";
 const OUTPUT = [
-  { text: "16 scenarios · 3 concurrent · deterministic sandbox", cls: "text-ink-dim" },
+  { text: "17 scenarios · 3 concurrent · deterministic sandbox", cls: "text-ink-dim" },
   { text: "2 failed — Destructive action, Injection compliance", cls: "text-rd" },
   { text: "reliability 88", cls: "text-ink" },
   { text: "PASS — gate 75 met · exit 0", cls: "text-gn" },
