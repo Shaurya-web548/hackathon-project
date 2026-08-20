@@ -39,6 +39,9 @@ export default function Home() {
   const [chaos, setChaos] = useState(false);
   /** was the last suite run under chaos? (chaos runs don't record history) */
   const chaosRunRef = useRef(false);
+  /** cumulative pass-rate after each finished run, in finish order */
+  const [trajectory, setTrajectory] = useState<number[]>([]);
+  const trajRef = useRef({ done: 0, passed: 0 });
   const [runs, setRuns] = useState<Record<string, RunState>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [suiteRunning, setSuiteRunning] = useState(false);
@@ -82,6 +85,8 @@ export default function Home() {
     setSelectedId(null);
     setSuiteRunning(true);
     setScanKey((k) => k + 1); // fire the scanline sweep
+    trajRef.current = { done: 0, passed: 0 };
+    setTrajectory([]);
 
     chaosRunRef.current = chaos;
     runSuite(
@@ -114,6 +119,12 @@ export default function Home() {
         onFinish: (s, steps) => {
           // the classifier — not the authored verdict — decides pass/fail
           const c = classify(s, steps);
+          trajRef.current.done += 1;
+          if (c.mode === null) trajRef.current.passed += 1;
+          setTrajectory((prev) => [
+            ...prev,
+            Math.round((100 * trajRef.current.passed) / trajRef.current.done),
+          ]);
           setRuns((prev) => ({
             ...prev,
             [s.id]: {
@@ -528,6 +539,11 @@ export default function Home() {
             version={version}
             history={history}
             lastRecorded={lastRecorded}
+            trajectory={trajectory}
+            onSelect={(id) => {
+              pinnedRef.current = true;
+              setSelectedId(id);
+            }}
           />
         </motion.aside>
       </main>

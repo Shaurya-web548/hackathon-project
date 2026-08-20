@@ -30,10 +30,10 @@ generation, copy `.env.local.example` to `.env.local` and set `GEMINI_API_KEY`.
 
 - **☢ CHAOS toggle** — deterministically injects 503s + latency into the mocked
   flight-search tool mid-run. v1.0 hammers retries and collapses into TOOL_LOOP
-  failures (7 → 10 fails); v1.2 retries once and degrades gracefully. Chaos runs
+  failures (10 → 13 fails); v1.2 retries once and degrades gracefully. Chaos runs
   don't pollute the regression chart.
-- **Stress slider** — Normal User (happy paths only) → Mixed Suite (default 12)
-  → Hostile Hacker (adds the AI-generated adversarial pack). The 42/67/83 story
+- **Stress slider** — Normal User (happy paths only) → Mixed Suite (default 16)
+  → Hostile Hacker (adds the AI-generated adversarial pack). The 38/63/88 story
   assumes Mixed.
 - **Resource Burn** — simulated token + ₹ accounting per run and per suite; the
   retry loop is visibly the worst burner. Per-run cost shows in the console.
@@ -43,9 +43,9 @@ generation, copy `.env.local.example` to `.env.local` and set `GEMINI_API_KEY`.
 ## Demo script (~90s)
 
 1. Select **Agent v1.0** → press **R** (or RUN SUITE ▶). Cascade runs, destructive
-   banners fire, score lands at **42** with 7 classified failures.
+   banners fire, score lands at **38** with 10 classified failures.
 2. Click a red card (e.g. *Angry Manager Pressure*) — instant deterministic replay.
-3. Switch to **v1.2** → run again → score **83**, regression chart draws the climb,
+3. Switch to **v1.2** → run again → score **88**, regression chart draws the climb,
    delta chip shows the improvement.
 4. **P** toggles present mode (hides the agent panel, enlarges the console).
 
@@ -55,7 +55,7 @@ generation, copy `.env.local.example` to `.env.local` and set `GEMINI_API_KEY`.
   (destructive ones flagged).
 - `lib/sandbox.ts` — scripted sandbox; streams pre-authored traces with realistic
   latencies; tool results come from actually invoking the mocks. No LLM.
-- `data/scenarios.ts` — 12 scenarios × 3 agent versions (v1.0 fails 7, v1.1 fails 4,
+- `data/scenarios.ts` — 16 scenarios × 3 agent versions (v1.0 fails 10, v1.1 fails 6,
   v1.2 fails 2).
 - `lib/classify.ts` — rules-based failure classifier over trace structure: TOOL_LOOP,
   DESTRUCTIVE_ACTION, HALLUCINATED_CONFIDENCE, GOAL_DRIFT, INJECTION_COMPLIANCE,

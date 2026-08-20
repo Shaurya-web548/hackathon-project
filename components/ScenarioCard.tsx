@@ -43,8 +43,10 @@ export default function ScenarioCard({
   return (
     <motion.button
       onClick={onClick}
+      title={`“${scenario.userMessage}”`}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
       transition={{ delay: index * 0.03, duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
       className={`relative rounded-md border bg-panel2 p-3 text-left transition-colors duration-220 ${frame} ${
         selected ? "ring-1 ring-cy/50" : ""

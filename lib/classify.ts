@@ -97,13 +97,15 @@ export function classify(scenario: Scenario, steps: ResolvedStep[]): Classificat
     }
 
     if (step.type === "final") {
-      // HALLUCINATED_CONFIDENCE — final asserts an amount contradicting tool output
+      // HALLUCINATED_CONFIDENCE — final asserts an amount that appears neither
+      // in any tool result nor in the user's own message
       const resultAmounts = new Set(
         steps.filter((s) => s.type === "tool_result").flatMap((s) => amounts(s.text)),
       );
+      const grounded = new Set([...resultAmounts, ...amounts(scenario.userMessage)]);
       if (resultAmounts.size > 0) {
         for (const a of amounts(step.text)) {
-          if (!resultAmounts.has(a)) {
+          if (!grounded.has(a)) {
             hit(
               "HALLUCINATED_CONFIDENCE",
               `final answer asserts ₹${Number(a).toLocaleString("en-IN")} but tools returned [${[...resultAmounts].map((x) => "₹" + Number(x).toLocaleString("en-IN")).join(", ")}]`,

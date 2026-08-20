@@ -12,6 +12,7 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -46,6 +47,8 @@ export default function Scorecard({
   version,
   history,
   lastRecorded,
+  trajectory = [],
+  onSelect,
 }: {
   scenarios: Scenario[];
   runs: Record<string, RunState>;
@@ -53,10 +56,16 @@ export default function Scorecard({
   history: Partial<Record<AgentVersion, number>>;
   /** version whose score most recently landed — its chart point pops */
   lastRecorded: AgentVersion | null;
+  /** cumulative pass-rate (0–100) after each finished run, in finish order */
+  trajectory?: number[];
+  /** clicking a suite-map cell selects that scenario in the console */
+  onSelect?: (id: string) => void;
 }) {
   const finished = scenarios.filter((s) => runs[s.id]?.done);
   const passes = finished.filter((s) => runs[s.id].status === "pass");
   const fails = finished.filter((s) => runs[s.id].status === "fail");
+  const shownPass = useSpringNumber(passes.length);
+  const shownFail = useSpringNumber(fails.length);
   const advTotal = scenarios.filter((s) => s.adversarial).length;
   const advPassed = passes.filter((s) => s.adversarial).length;
 
@@ -144,11 +153,11 @@ export default function Scorecard({
 
         <div className="mt-3 grid w-full grid-cols-3 gap-2 text-center">
           <div className="rounded border border-gn/30 bg-gn/[0.06] py-1.5">
-            <div className="text-sm font-bold text-gn tabular-nums">{passes.length}</div>
+            <div className="text-sm font-bold text-gn tabular-nums">{shownPass}</div>
             <div className="text-[9px] tracking-wider text-ink-dim uppercase">pass</div>
           </div>
           <div className="rounded border border-rd/30 bg-rd/[0.06] py-1.5">
-            <div className="text-sm font-bold text-rd tabular-nums">{fails.length}</div>
+            <div className="text-sm font-bold text-rd tabular-nums">{shownFail}</div>
             <div className="text-[9px] tracking-wider text-ink-dim uppercase">fail</div>
           </div>
           <div className="rounded border border-edge-bright py-1.5">
@@ -160,6 +169,32 @@ export default function Scorecard({
             </div>
           </div>
         </div>
+
+        {/* score trajectory while the suite runs */}
+        {trajectory.length > 1 && (
+          <div className="mt-3 w-full">
+            <div className="mb-1 flex justify-between text-[9px] text-ink-dim">
+              <span>pass rate as results landed</span>
+              <span className="readout">{trajectory[trajectory.length - 1]}%</span>
+            </div>
+            <svg viewBox="0 0 100 22" preserveAspectRatio="none" className="h-6 w-full">
+              <line x1="0" y1="21" x2="100" y2="21" stroke="var(--line)" strokeWidth="0.5" />
+              <polyline
+                points={trajectory
+                  .map((p, i) => `${(i / Math.max(trajectory.length - 1, 1)) * 100},${21 - (p / 100) * 19}`)
+                  .join(" ")}
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth="1.2"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          </div>
+        )}
+        <p className="mt-2 text-[10px] text-ink-dim">
+          Score = scenarios passed ÷ total, judged by the trace classifier — not by
+          hand-labeled results.
+        </p>
       </div>
 
       {/* ── suite map: one cell per scenario, rows per category ── */}
@@ -169,14 +204,15 @@ export default function Scorecard({
           {scenarios.map((s) => {
             const st = runs[s.id]?.status ?? "idle";
             return (
-              <div
+              <button
                 key={s.id}
-                title={`${s.title} — ${st}`}
-                className={`h-5 flex-1 rounded-[2px] border transition-colors duration-220 ${
+                onClick={() => onSelect?.(s.id)}
+                title={`${s.title} — ${st}${runs[s.id]?.done ? " · click to replay" : ""}`}
+                className={`h-5 flex-1 rounded-[2px] border transition-all duration-220 hover:scale-y-125 ${
                   st === "pass"
-                    ? "border-transparent bg-ink/60"
+                    ? "cell-land border-transparent bg-ink/60"
                     : st === "fail"
-                      ? "border-transparent bg-rd"
+                      ? "cell-land border-transparent bg-rd"
                       : st === "running"
                         ? "running-pulse border-cy/60 bg-cy/15"
                         : "border-edge bg-transparent"
@@ -187,7 +223,7 @@ export default function Scorecard({
         </div>
         <div className="mt-1.5 flex justify-between text-[9px] text-ink-dim">
           <span>1</span>
-          <span>one cell per scenario · ivory pass · burgundy fail</span>
+          <span>one cell per scenario · ivory pass · burgundy fail · click to replay</span>
           <span className="readout">{scenarios.length}</span>
         </div>
 
@@ -345,12 +381,42 @@ export default function Scorecard({
             </div>
           </div>
         </div>
-        {worstBurn && (
-          <div className="mt-2 text-[10px] text-ink-dim">
-            worst burner:{" "}
-            <span className="text-ink">{worstBurn.title}</span> —{" "}
-            {runTokens(runs[worstBurn.id].steps).toLocaleString("en-IN")} tokens (
-            {fmtINR(tokensToINR(runTokens(runs[worstBurn.id].steps)))})
+        {finished.length > 0 && (
+          <div className="mt-3 flex flex-col gap-1 border-t border-edge pt-2.5">
+            {[...finished]
+              .sort((a, b) => runTokens(runs[b.id].steps) - runTokens(runs[a.id].steps))
+              .slice(0, 6)
+              .map((s) => {
+                const tk = runTokens(runs[s.id].steps);
+                const max = runTokens(runs[worstBurn.id].steps) || 1;
+                const failed = runs[s.id].status === "fail";
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => onSelect?.(s.id)}
+                    title={`${s.title} — ${tk.toLocaleString("en-IN")} tokens (${fmtINR(tokensToINR(tk))}) · click to replay`}
+                    className="group flex items-center gap-2 text-left"
+                  >
+                    <span className="w-[108px] shrink-0 truncate text-[10px] text-ink-dim group-hover:text-ink">
+                      {s.title}
+                    </span>
+                    <span className="h-1.5 flex-1 overflow-hidden rounded-[1px] bg-bg">
+                      <motion.span
+                        className={`block h-full ${failed ? "bg-rd" : "bg-ink/40"}`}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(tk / max) * 100}%` }}
+                        transition={{ type: "spring", stiffness: 60, damping: 18 }}
+                      />
+                    </span>
+                    <span className="readout w-12 shrink-0 text-right font-mono text-[10px] text-ink-dim">
+                      {tk.toLocaleString("en-IN")}
+                    </span>
+                  </button>
+                );
+              })}
+            <p className="mt-1 text-[9px] text-ink-dim">
+              tokens per run, costliest first — failures burn the budget
+            </p>
           </div>
         )}
       </div>
@@ -392,6 +458,19 @@ export default function Scorecard({
                 stroke="var(--text-dim)"
                 fontSize={10}
                 tickLine={false}
+              />
+              <Tooltip
+                cursor={{ stroke: "var(--line-2)", strokeWidth: 1 }}
+                contentStyle={{
+                  background: "var(--bg-2)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontFamily: "var(--font-jetbrains), monospace",
+                  color: "var(--text-1)",
+                }}
+                labelStyle={{ color: "var(--text-2)" }}
+                formatter={(v) => [String(v ?? ""), "reliability"]}
               />
               <Line
                 type="monotone"

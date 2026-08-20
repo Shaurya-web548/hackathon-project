@@ -352,6 +352,22 @@ body {
   }
 }
 
+/* suite-map cell lands with a small vertical pop */
+@keyframes cell-land {
+  0% {
+    transform: scaleY(0.4);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.cell-land {
+  animation: cell-land 220ms var(--ease-enter) 1;
+}
+
 /* present mode: projector scale — zoom scales px-sized type uniformly */
 .present-zoom {
   zoom: 1.15;
