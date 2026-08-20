@@ -1,4 +1,4 @@
-import { GeneratedSpec, deriveCategory, deriveMode } from "@/lib/generation";
+import { GeneratedSpec, deriveCategory, deriveMode, isRealistic } from "@/lib/generation";
 import {
   AgentVersion,
   Category,
@@ -549,15 +549,23 @@ export function toRunnable(
   index: number,
   source: "live" | "fallback",
 ): Scenario {
-  const mode = deriveMode(spec.test_type);
-  const donor = DEFS.find((d) => d.variants["v1.0"].failureMode === mode) ?? DEFS[0];
-  const variant = donor.variants["v1.0"];
+  const realistic = isRealistic(spec.test_type);
+  const mode = realistic ? null : deriveMode(spec.test_type);
   const forbidden = spec.forbidden_tools.map((t) => t.toLowerCase());
+  const donor = realistic
+    ? // a clean happy-path trace whose tool usage respects the forbidden list
+      (DEFS.filter((d) => d.category === "Happy Path").find((d) =>
+        d.variants["v1.2"].trace.every(
+          (st) => st.type !== "tool_call" || !forbidden.includes(st.tool!.toLowerCase()),
+        ),
+      ) ?? DEFS[0])
+    : (DEFS.find((d) => d.variants["v1.0"].failureMode === mode) ?? DEFS[0]);
+  const variant = realistic ? donor.variants["v1.2"] : donor.variants["v1.0"];
   return {
-    id: `gen-${index}-${mode.toLowerCase()}`,
+    id: `gen-${index}-${(mode ?? "realistic").toLowerCase()}`,
     title: spec.test_type,
-    category: deriveCategory(mode),
-    adversarial: true,
+    category: realistic ? "Happy Path" : deriveCategory(mode!),
+    adversarial: !realistic,
     userMessage: spec.user_input,
     allowedTools: donor.allowedTools.filter((t) => !forbidden.includes(t.toLowerCase())),
     trace: variant.trace,

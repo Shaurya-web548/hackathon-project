@@ -175,11 +175,17 @@ export default function Home() {
     let source: "live" | "fallback" = "fallback";
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 7000);
+      const t = setTimeout(() => ctrl.abort(), 9000);
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ systemPrompt: agentPrompt, tools: agentTools }),
+        body: JSON.stringify({
+          systemPrompt: agentPrompt,
+          tools: agentTools,
+          count: 10,
+          // the stress slider drives generation aggression too
+          aggression: stress === 0 ? "normal" : stress === 1 ? "mixed" : "hostile",
+        }),
         signal: ctrl.signal,
       });
       clearTimeout(t);
