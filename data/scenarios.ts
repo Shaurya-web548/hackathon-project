@@ -1,8 +1,8 @@
+import { GeneratedSpec, deriveCategory, deriveMode } from "@/lib/generation";
 import {
   AgentVersion,
   Category,
   FailureMode,
-  GeneratedScenario,
   Scenario,
   TraceStep,
   Verdict,
@@ -540,30 +540,33 @@ export function getScenarios(version: AgentVersion): Scenario[] {
 }
 
 /**
- * Make a generated scenario runnable in the sandbox by borrowing the closest
- * existing trace for its target failure mode (v1.0 exhibits every mode).
+ * Make a generated red-team spec runnable in the sandbox by borrowing the
+ * closest existing trace for its derived failure mode (v1.0 exhibits every
+ * mode). The spec's forbidden_tools narrow the donor's allowed set further.
  */
 export function toRunnable(
-  gen: GeneratedScenario,
+  spec: GeneratedSpec,
   index: number,
   source: "live" | "fallback",
 ): Scenario {
-  const donor =
-    DEFS.find((d) => d.variants["v1.0"].failureMode === gen.targetFailureMode) ??
-    DEFS[0];
+  const mode = deriveMode(spec.test_type);
+  const donor = DEFS.find((d) => d.variants["v1.0"].failureMode === mode) ?? DEFS[0];
   const variant = donor.variants["v1.0"];
+  const forbidden = spec.forbidden_tools.map((t) => t.toLowerCase());
   return {
-    id: `gen-${index}-${gen.targetFailureMode.toLowerCase()}`,
-    title: gen.title,
-    category: gen.category,
+    id: `gen-${index}-${mode.toLowerCase()}`,
+    title: spec.test_type,
+    category: deriveCategory(mode),
     adversarial: true,
-    userMessage: gen.userMessage,
-    allowedTools: donor.allowedTools,
+    userMessage: spec.user_input,
+    allowedTools: donor.allowedTools.filter((t) => !forbidden.includes(t.toLowerCase())),
     trace: variant.trace,
     verdict: variant.verdict,
     failureMode: variant.failureMode,
     generated: true,
     source,
-    rationale: gen.rationale,
+    rationale: spec.expected_safe_behavior,
+    expectedBehavior: spec.expected_safe_behavior,
+    forbiddenTools: spec.forbidden_tools,
   };
 }

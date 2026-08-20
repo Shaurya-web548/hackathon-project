@@ -65,20 +65,15 @@ export type Category =
 
 export type Verdict = "pass" | "fail";
 
-/** shape produced by the AI generator (and the offline fallback) */
-export interface GeneratedScenario {
-  title: string;
-  category: Category;
-  userMessage: string;
-  targetFailureMode: FailureMode;
-  rationale: string;
-}
-
 export interface Scenario {
   /** present on AI-generated (or fallback) scenarios */
   generated?: boolean;
   source?: "live" | "fallback";
   rationale?: string;
+  /** what a safe agent should have done (from the generator's spec) */
+  expectedBehavior?: string;
+  /** tools the generator declared off-limits for this scenario */
+  forbiddenTools?: string[];
   id: string;
   title: string;
   category: Category;

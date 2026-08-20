@@ -25,11 +25,15 @@ export default function Home() {
   const [extra, setExtra] = useState<Scenario[]>([]);
   /** 0 = Normal User · 1 = Mixed (default) · 2 = Hostile Hacker */
   const [stress, setStress] = useState(1);
+  /** "generated" shows only the dynamically generated suite */
+  const [view, setView] = useState<"all" | "generated">("all");
   const scenarios = useMemo(() => {
-    if (stress === 0) return baseScenarios.filter((s) => !s.adversarial);
-    if (stress === 1) return baseScenarios;
-    return [...baseScenarios, ...extra];
-  }, [baseScenarios, extra, stress]);
+    const pool =
+      stress === 0
+        ? baseScenarios.filter((s) => !s.adversarial)
+        : [...baseScenarios, ...extra];
+    return view === "generated" ? pool.filter((s) => s.generated) : pool;
+  }, [baseScenarios, extra, stress, view]);
   // editable agent-under-test (generation reads these; sandbox runs bundled traces)
   const [agentPrompt, setAgentPrompt] = useState(SYSTEM_PROMPT);
   const [agentTools, setAgentTools] = useState(() =>
@@ -191,6 +195,7 @@ export default function Home() {
     setExtra(gens.map((g: (typeof FALLBACK_GENERATED)[number], i: number) => toRunnable(g, i, source)));
     setGenState(source);
   };
+  const generatedVisible = scenarios.filter((s) => s.generated);
 
   // record the version's score once a full suite completes
   useEffect(() => {
@@ -198,6 +203,8 @@ export default function Home() {
     const vals = Object.values(runs);
     if (vals.length === scenarios.length && vals.every((r) => r.done)) {
       if (chaosRunRef.current) return; // chaos runs don't pollute the regression chart
+      // only a full bundled-suite run records a comparable score
+      if (vals.length !== getScenarios(version).length) return;
       const passes = vals.filter((r) => r.status === "pass").length;
       const score = Math.round((passes / vals.length) * 100);
       setHistory((prev) => (prev[version] === score ? prev : { ...prev, [version]: score }));
@@ -432,11 +439,26 @@ export default function Home() {
 
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="eyebrow">
+              <h2 className="eyebrow flex items-center gap-2">
                 Test scenarios
                 {doneCount > 0 && (
-                  <span className="readout ml-2 normal-case">
+                  <span className="readout normal-case">
                     {doneCount}/{scenarios.length} complete
+                  </span>
+                )}
+                {extra.length > 0 && (
+                  <span className="flex overflow-hidden rounded-full border border-edge normal-case">
+                    {(["all", "generated"] as const).map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => setView(v)}
+                        className={`px-2 py-0.5 text-[10px] transition-colors ${
+                          view === v ? "bg-panel2 text-ink" : "text-ink-dim hover:text-ink"
+                        }`}
+                      >
+                        {v === "all" ? "All" : "Generated only"}
+                      </button>
+                    ))}
                   </span>
                 )}
               </h2>
@@ -521,6 +543,34 @@ export default function Home() {
                 />
               ))}
             </div>
+
+            {/* generated suite detail — the engine's raw output, as a table */}
+            {generatedVisible.length > 0 && (
+              <div className="mt-4 overflow-x-auto rounded-md border border-edge">
+                <table className="w-full border-collapse text-left text-[11px]">
+                  <thead>
+                    <tr className="border-b border-edge text-[9px] tracking-[0.08em] text-ink-dim uppercase">
+                      <th className="px-2.5 py-1.5 font-medium">Test type</th>
+                      <th className="px-2.5 py-1.5 font-medium">User input</th>
+                      <th className="px-2.5 py-1.5 font-medium">Expected safe behavior</th>
+                      <th className="px-2.5 py-1.5 font-medium">Forbidden tools</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {generatedVisible.map((s) => (
+                      <tr key={s.id} className="border-b border-edge last:border-b-0 align-top">
+                        <td className="px-2.5 py-1.5 whitespace-nowrap text-ink">{s.title}</td>
+                        <td className="px-2.5 py-1.5 text-ink-dim">“{s.userMessage}”</td>
+                        <td className="px-2.5 py-1.5 text-ink-dim">{s.expectedBehavior}</td>
+                        <td className="px-2.5 py-1.5 font-mono text-[10px] text-rd">
+                          {s.forbiddenTools?.length ? s.forbiddenTools.join(", ") : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <motion.div
