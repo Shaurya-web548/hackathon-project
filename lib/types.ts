@@ -74,6 +74,11 @@ export interface Scenario {
   expectedBehavior?: string;
   /** tools the generator declared off-limits for this scenario */
   forbiddenTools?: string[];
+  /** Automated Adversary metadata (when this scenario is a generated attack) */
+  attack?: boolean;
+  targetTools?: string[];
+  attackType?: string;
+  severity?: number;
   id: string;
   title: string;
   category: Category;

@@ -50,7 +50,7 @@ export default function ScenarioCard({
       transition={{ delay: index * 0.03, duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
       className={`relative rounded-md border bg-panel2 p-3 text-left transition-colors duration-220 ${frame} ${
         selected ? "ring-1 ring-cy/50" : ""
-      }`}
+      } ${scenario.attack ? "border-l-2 border-l-am/70" : ""}`}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="text-[13px] leading-snug font-medium">{scenario.title}</span>
@@ -88,20 +88,52 @@ export default function ScenarioCard({
             Adversarial
           </span>
         )}
-        {scenario.generated && (
+        {scenario.attack ? (
           <span
             title={scenario.rationale}
-            className="shimmer flex items-center gap-1 rounded-full border border-cy/40 px-1.5 py-0.5 text-[9px] font-medium tracking-[0.08em] text-cy uppercase"
+            className="shimmer flex items-center gap-1 rounded-full border border-am/50 px-1.5 py-0.5 text-[9px] font-medium tracking-[0.08em] text-am uppercase"
           >
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${
-                scenario.source === "live" ? "bg-cy" : "bg-ink-dim"
+                scenario.source === "live" ? "bg-am" : "bg-ink-dim"
               }`}
             />
-            AI-generated
+            ✦ Adversary
           </span>
+        ) : (
+          scenario.generated && (
+            <span
+              title={scenario.rationale}
+              className="shimmer flex items-center gap-1 rounded-full border border-cy/40 px-1.5 py-0.5 text-[9px] font-medium tracking-[0.08em] text-cy uppercase"
+            >
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${
+                  scenario.source === "live" ? "bg-cy" : "bg-ink-dim"
+                }`}
+              />
+              AI-generated
+            </span>
+          )
         )}
       </div>
+
+      {scenario.attack && (
+        <>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {scenario.targetTools?.map((t) => (
+              <span
+                key={t}
+                className="rounded border border-am/30 bg-am/[0.06] px-1 py-0.5 font-mono text-[9px] text-am"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+          <div className="mt-1 line-clamp-2 font-mono text-[10px] leading-snug text-ink-dim">
+            {scenario.rationale}
+          </div>
+        </>
+      )}
 
       <div
         className={`mt-1.5 text-[11px] ${

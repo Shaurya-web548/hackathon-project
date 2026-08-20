@@ -1,12 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  motion,
-  useMotionValue,
-  useMotionValueEvent,
-  useSpring,
-} from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import {
   CartesianGrid,
   Line,
@@ -32,14 +27,38 @@ import {
   VERSIONS,
 } from "@/lib/types";
 
+/** Count up to `target` over ~500ms, guaranteed to end exactly on target.
+ *  SSR-safe (renders the final value on the server) and interruptible. */
 function useSpringNumber(target: number) {
-  const mv = useMotionValue(0);
-  const spring = useSpring(mv, { stiffness: 60, damping: 18 });
-  const [val, setVal] = useState(0);
+  const [val, setVal] = useState(target);
+  const fromRef = useRef(target);
   useEffect(() => {
-    mv.set(target);
-  }, [target, mv]);
-  useMotionValueEvent(spring, "change", (v) => setVal(Math.round(v)));
+    const from = fromRef.current;
+    if (from === target) return;
+    let raf = 0;
+    let start = 0;
+    const step = (t: number) => {
+      if (!start) start = t;
+      const p = Math.min(1, (t - start) / 500);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const v = Math.round(from + (target - from) * eased);
+      setVal(v);
+      fromRef.current = v;
+      if (p < 1) raf = requestAnimationFrame(step);
+      else fromRef.current = target;
+    };
+    raf = requestAnimationFrame(step);
+    // safety net: rAF is paused in backgrounded tabs, so guarantee the final
+    // value lands even if no frames fire (setTimeout still runs when hidden)
+    const settle = setTimeout(() => {
+      setVal(target);
+      fromRef.current = target;
+    }, 650);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(settle);
+    };
+  }, [target]);
   return val;
 }
 

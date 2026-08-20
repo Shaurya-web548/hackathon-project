@@ -238,6 +238,17 @@ export default function TraceConsole({
               <span className="mt-[5px] mr-2 h-2.5 w-[3px] shrink-0 bg-transparent" />
               <div className="min-w-0 flex-1 pr-2">user: “{scenario.userMessage}”</div>
             </div>
+            {scenario.attack && (
+              <div className="mb-1 flex gap-0 text-am/80">
+                <span className="w-8 shrink-0 pr-2 text-right select-none">·</span>
+                <span className="mt-[5px] mr-2 h-2.5 w-[3px] shrink-0 bg-transparent" />
+                <div className="min-w-0 flex-1 pr-2">
+                  ✦ adversary attack · targets{" "}
+                  {(scenario.targetTools ?? []).join(", ")} · executed against the
+                  sandbox via the matching failure-mode harness
+                </div>
+              </div>
+            )}
 
             {visible.map((step, i) => (
               <StepLine

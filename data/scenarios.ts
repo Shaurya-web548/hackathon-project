@@ -540,6 +540,50 @@ export function getScenarios(version: AgentVersion): Scenario[] {
 }
 
 /**
+ * Map a generated Adversary attack onto a runnable, deterministic scenario:
+ * borrow the pre-authored trace that exhibits the attack's target failure
+ * mode, and substitute the generated attack text as the user message so the
+ * console shows the NEW attack, then plays the known deterministic steps.
+ * The classifier runs on the result exactly as before → real verdict.
+ */
+export function attackToScenario(
+  attack: {
+    title: string;
+    targetTools: string[];
+    targetFailureMode: FailureMode;
+    attackType: string;
+    userMessage: string;
+    rationale: string;
+    severity: number;
+  },
+  index: number,
+  source: "live" | "fallback",
+): Scenario {
+  const donor =
+    DEFS.find((d) => d.variants["v1.0"].failureMode === attack.targetFailureMode) ??
+    DEFS[0];
+  const variant = donor.variants["v1.0"];
+  return {
+    id: `atk-${index}-${attack.targetFailureMode.toLowerCase()}`,
+    title: attack.title,
+    category: deriveCategory(attack.targetFailureMode),
+    adversarial: true,
+    userMessage: attack.userMessage,
+    allowedTools: donor.allowedTools,
+    trace: variant.trace,
+    verdict: variant.verdict,
+    failureMode: variant.failureMode,
+    generated: true,
+    attack: true,
+    source,
+    rationale: attack.rationale,
+    targetTools: attack.targetTools,
+    attackType: attack.attackType,
+    severity: attack.severity,
+  };
+}
+
+/**
  * Make a generated red-team spec runnable in the sandbox by borrowing the
  * closest existing trace for its derived failure mode (v1.0 exhibits every
  * mode). The spec's forbidden_tools narrow the donor's allowed set further.

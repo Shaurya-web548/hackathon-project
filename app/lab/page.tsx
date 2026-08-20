@@ -5,11 +5,13 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { AGENT_NAME, AGENT_TAGLINE, SYSTEM_PROMPT, TOOLS } from "@/data/demoAgent";
 import { FALLBACK_GENERATED } from "@/data/fallbackGenerated";
-import { getScenarios, toRunnable } from "@/data/scenarios";
+import { FALLBACK_ADVERSARY } from "@/data/fallbackAdversary";
+import { getScenarios, toRunnable, attackToScenario } from "@/data/scenarios";
 import { runScenario } from "@/lib/sandbox";
 import { classify } from "@/lib/classify";
 import { RunState, idleRun, runSuite } from "@/lib/runner";
 import { AgentVersion, Scenario, VERSIONS } from "@/lib/types";
+import AdversaryPanel from "@/components/AdversaryPanel";
 import ScenarioCard from "@/components/ScenarioCard";
 import Scorecard from "@/components/Scorecard";
 import TraceConsole from "@/components/TraceConsole";
@@ -23,6 +25,8 @@ export default function Home() {
   const [version, setVersion] = useState<AgentVersion>("v1.0");
   const [baseScenarios, setBaseScenarios] = useState<Scenario[]>(() => getScenarios("v1.0"));
   const [extra, setExtra] = useState<Scenario[]>([]);
+  // the Automated Adversary's generated attack scenarios
+  const [attacks, setAttacks] = useState<Scenario[]>([]);
   /** 0 = Normal User · 1 = Mixed (default) · 2 = Hostile Hacker */
   const [stress, setStress] = useState(1);
   /** "generated" shows only the dynamically generated suite */
@@ -30,16 +34,23 @@ export default function Home() {
   const scenarios = useMemo(() => {
     const pool =
       stress === 0
-        ? baseScenarios.filter((s) => !s.adversarial)
-        : [...baseScenarios, ...extra];
-    return view === "generated" ? pool.filter((s) => s.generated) : pool;
-  }, [baseScenarios, extra, stress, view]);
+        ? [...baseScenarios.filter((s) => !s.adversarial), ...attacks]
+        : [...baseScenarios, ...extra, ...attacks];
+    return view === "generated"
+      ? pool.filter((s) => s.generated || s.attack)
+      : pool;
+  }, [baseScenarios, extra, attacks, stress, view]);
   // editable agent-under-test (generation reads these; sandbox runs bundled traces)
   const [agentPrompt, setAgentPrompt] = useState(SYSTEM_PROMPT);
   const [agentTools, setAgentTools] = useState(() =>
     TOOLS.map((t) => `${t.name}${t.destructive ? " (destructive)" : ""} — ${t.description}`).join("\n"),
   );
   const [genState, setGenState] = useState<"idle" | "loading" | "live" | "fallback">("idle");
+  // the Automated Adversary
+  const [advState, setAdvState] = useState<"idle" | "loading" | "live" | "fallback">("idle");
+  const [advDiscarded, setAdvDiscarded] = useState(0);
+  const [pulseRun, setPulseRun] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
   const [chaos, setChaos] = useState(false);
   /** was the last suite run under chaos? (chaos runs don't record history) */
   const chaosRunRef = useRef(false);
@@ -201,7 +212,61 @@ export default function Home() {
     setExtra(gens.map((g: (typeof FALLBACK_GENERATED)[number], i: number) => toRunnable(g, i, source)));
     setGenState(source);
   };
-  const generatedVisible = scenarios.filter((s) => s.generated);
+  const generatedVisible = scenarios.filter((s) => s.generated && !s.attack);
+
+  /** The Automated Adversary: tool-aware attack generation. */
+  const generateAttacks = async () => {
+    if (advState === "loading") return;
+    setAdvState("loading");
+    setAdvDiscarded(0);
+    // staged feel: never resolve faster than ~1.4s even on a fast/cached call
+    const minDelay = new Promise((r) => setTimeout(r, 1400));
+    let result: { attacks: unknown[]; discarded: number; source: "live" | "fallback" } = {
+      attacks: FALLBACK_ADVERSARY,
+      discarded: 0,
+      source: "fallback",
+    };
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 7000);
+      const res = await fetch("/api/adversary", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          agentPrompt,
+          tools: TOOLS.map((tl) => ({
+            name: tl.name,
+            description: tl.description,
+            destructive: tl.destructive,
+          })),
+        }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.attacks) && data.attacks.length > 0) {
+        result = { attacks: data.attacks, discarded: data.discarded ?? 0, source: "live" };
+      }
+    } catch {
+      /* silent — fallback */
+    }
+    await minDelay;
+    setAttacks(
+      result.attacks.map((a, i) =>
+        attackToScenario(a as Parameters<typeof attackToScenario>[0], i, result.source),
+      ),
+    );
+    setAdvDiscarded(result.discarded);
+    setAdvState(result.source);
+    setView("all");
+    setPulseRun(true);
+    setTimeout(() => setPulseRun(false), 2400);
+    // auto-scroll the grid to the new attacks
+    setTimeout(() => {
+      gridRef.current?.scrollTo({ top: gridRef.current.scrollHeight, behavior: "smooth" });
+    }, 200);
+  };
+  const attackList = scenarios.filter((s) => s.attack);
 
   // record the version's score once a full suite completes
   useEffect(() => {
@@ -322,6 +387,8 @@ export default function Home() {
             onClick={startSuite}
             disabled={suiteRunning}
             whileTap={{ scale: 0.98 }}
+            animate={pulseRun ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+            transition={pulseRun ? { duration: 0.6, repeat: 3 } : { duration: 0.15 }}
             className={`rounded px-4 py-1.5 text-[13px] font-medium transition-colors ${
               suiteRunning
                 ? "cursor-default bg-panel2 text-ink-dim"
@@ -443,7 +510,16 @@ export default function Home() {
             )}
           </AnimatePresence>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div ref={gridRef} className="min-h-0 flex-1 overflow-y-auto p-4">
+            {!present && (
+              <AdversaryPanel
+                tools={TOOLS}
+                attacks={attackList}
+                state={advState}
+                discarded={advDiscarded}
+                onGenerate={generateAttacks}
+              />
+            )}
             <div className="mb-3 flex items-center justify-between">
               <h2 className="eyebrow flex items-center gap-2">
                 Test scenarios
@@ -452,7 +528,7 @@ export default function Home() {
                     {doneCount}/{scenarios.length} complete
                   </span>
                 )}
-                {extra.length > 0 && (
+                {(extra.length > 0 || attacks.length > 0) && (
                   <span className="flex overflow-hidden rounded-full border border-edge normal-case">
                     {(["all", "generated"] as const).map((v) => (
                       <button
