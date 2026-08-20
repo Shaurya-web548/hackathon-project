@@ -10,6 +10,9 @@ export interface RunState {
   /** classifier output once done */
   failureMode?: FailureMode | null;
   evidence?: string;
+  /** wall-clock timestamps for the run-timeline visual */
+  startedAt?: number;
+  finishedAt?: number;
 }
 
 export const idleRun = (): RunState => ({ status: "idle", steps: [], done: false });

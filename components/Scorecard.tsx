@@ -11,11 +11,16 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  PolarAngleAxis,
+  PolarGrid,
+  Radar,
+  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { versionProfiles } from "@/lib/analysis";
 import { fmtINR, runTokens, tokensToINR } from "@/lib/burn";
 import { PATCHES } from "@/data/patches";
 import { RunState } from "@/lib/runner";
@@ -40,6 +45,43 @@ function useSpringNumber(target: number) {
 
 const scoreColor = (n: number) =>
   n < 40 ? "var(--fail)" : n < 75 ? "var(--warn)" : "var(--pass)";
+
+/** one row of the mode × version matrix */
+function FragmentRow({
+  label,
+  counts,
+  max,
+  activeIdx,
+}: {
+  label: string;
+  counts: number[];
+  max: number;
+  activeIdx: number;
+}) {
+  return (
+    <>
+      <span className="truncate pr-2 text-ink-dim">{label}</span>
+      {counts.map((n, i) => (
+        <span
+          key={i}
+          title={`${label}: ${n} failure${n === 1 ? "" : "s"}`}
+          className={`readout mx-auto grid h-5 w-7 place-items-center rounded-[2px] font-mono text-[10px] ${
+            i === activeIdx ? "ring-1 ring-edge-bright" : ""
+          }`}
+          style={{
+            background:
+              n > 0
+                ? `color-mix(in srgb, var(--fail) ${25 + Math.round((55 * n) / max)}%, transparent)`
+                : "var(--bg-0)",
+            color: n > 0 ? "var(--text-1)" : "var(--text-2)",
+          }}
+        >
+          {n > 0 ? n : "·"}
+        </span>
+      ))}
+    </>
+  );
+}
 
 export default function Scorecard({
   scenarios,
@@ -107,6 +149,36 @@ export default function Scorecard({
   // ring geometry
   const R = 52;
   const C = 2 * Math.PI * R;
+
+  // cross-version profiles (classifier-derived, deterministic)
+  const profiles = versionProfiles();
+  const curProfile = profiles[vIdx];
+  const prevProfile = vIdx > 0 ? profiles[vIdx - 1] : null;
+  const CAT_SHORT: [string, string][] = [
+    ["Happy Path", "Happy"],
+    ["Robustness", "Robust"],
+    ["Safety", "Safety"],
+    ["Security", "Security"],
+    ["Accuracy", "Accuracy"],
+  ];
+  const radarData = CAT_SHORT.map(([cat, label]) => {
+    const c = curProfile.byCategory[cat as keyof typeof curProfile.byCategory];
+    const p = prevProfile?.byCategory[cat as keyof typeof curProfile.byCategory];
+    return {
+      cat: label,
+      cur: c ? Math.round((100 * c.pass) / c.total) : 0,
+      prev: p ? Math.round((100 * p.pass) / p.total) : null,
+    };
+  });
+  const maxModeCount = Math.max(1, ...profiles.flatMap((p) => Object.values(p.byMode)));
+
+  // run timeline
+  const timed = scenarios
+    .filter((s) => runs[s.id]?.startedAt)
+    .sort((a, b) => (runs[a.id].startedAt ?? 0) - (runs[b.id].startedAt ?? 0));
+  const t0 = Math.min(...timed.map((s) => runs[s.id].startedAt ?? Infinity));
+  const tEnd = Math.max(t0 + 1, ...timed.map((s) => runs[s.id].finishedAt ?? 0));
+  const span = tEnd - t0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -262,6 +334,49 @@ export default function Scorecard({
         </div>
       </div>
 
+      {/* ── category profile radar ──────────────────────── */}
+      <div className="rounded-md border border-edge bg-panel2 p-4">
+        <div className="flex items-baseline justify-between">
+          <h3 className="eyebrow text-[10px]">Category profile</h3>
+          <span className="text-[9px] text-ink-dim">
+            {version}
+            {prevProfile ? ` vs ${prevProfile.version}` : ""} · pass rate
+          </span>
+        </div>
+        <div className="h-44">
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart data={radarData} outerRadius="72%">
+              <PolarGrid stroke="var(--line)" />
+              <PolarAngleAxis
+                dataKey="cat"
+                tick={{ fill: "var(--text-2)", fontSize: 10 }}
+              />
+              {prevProfile && (
+                <Radar
+                  dataKey="prev"
+                  stroke="var(--line-2)"
+                  strokeDasharray="4 3"
+                  fill="none"
+                  isAnimationActive={false}
+                />
+              )}
+              <Radar
+                dataKey="cur"
+                stroke="var(--accent)"
+                strokeWidth={1.5}
+                fill="var(--accent)"
+                fillOpacity={0.14}
+                animationDuration={700}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="text-center text-[9px] text-ink-dim">
+          solid = {version} · dashed = {prevProfile ? prevProfile.version : "—"} ·
+          full pentagon = every category clean
+        </p>
+      </div>
+
       {/* ── taxonomy breakdown ──────────────────────────── */}
       <div className="rounded-md border border-edge bg-panel2 p-4">
         <h3 className="eyebrow mb-3 text-[10px]">Failure taxonomy</h3>
@@ -288,6 +403,37 @@ export default function Scorecard({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── failure modes across versions ───────────────── */}
+      <div className="rounded-md border border-edge bg-panel2 p-4">
+        <h3 className="eyebrow mb-2 text-[10px]">What each release fixed</h3>
+        <div className="grid grid-cols-[1fr_repeat(3,34px)] items-center gap-y-1 text-[10px]">
+          <span />
+          {profiles.map((p) => (
+            <span
+              key={p.version}
+              className={`readout text-center font-mono ${
+                p.version === version ? "font-medium text-cy" : "text-ink-dim"
+              }`}
+            >
+              {p.version}
+            </span>
+          ))}
+          {SEVERITY_ORDER.map((mode) => (
+            <FragmentRow
+              key={mode}
+              label={MODE_LABEL[mode]}
+              counts={profiles.map((p) => p.byMode[mode])}
+              max={maxModeCount}
+              activeIdx={vIdx}
+            />
+          ))}
+        </div>
+        <p className="mt-2 text-[9px] text-ink-dim">
+          failures per mode, classified from each version&apos;s traces — an empty
+          column is a clean release
+        </p>
       </div>
 
       {/* ── worst offender ──────────────────────────────── */}
@@ -420,6 +566,51 @@ export default function Scorecard({
           </div>
         )}
       </div>
+
+      {/* ── run timeline: 3 workers racing through the suite ── */}
+      {timed.length > 1 && (
+        <div className="rounded-md border border-edge bg-panel2 p-4">
+          <div className="flex items-baseline justify-between">
+            <h3 className="eyebrow text-[10px]">Run timeline</h3>
+            <span className="readout text-[9px] text-ink-dim">
+              {((tEnd - t0) / 1000).toFixed(1)}s wall clock · 3 concurrent
+            </span>
+          </div>
+          <div className="mt-2 flex flex-col gap-[3px]">
+            {timed.map((s) => {
+              const r = runs[s.id];
+              const start = ((r.startedAt! - t0) / span) * 100;
+              const end = r.finishedAt ? ((r.finishedAt - t0) / span) * 100 : 100;
+              const dur = r.finishedAt
+                ? `${((r.finishedAt - r.startedAt!) / 1000).toFixed(1)}s`
+                : "running";
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => onSelect?.(s.id)}
+                  title={`${s.title} — ${dur} · click to replay`}
+                  className="group relative h-[7px] w-full rounded-[1px] bg-bg"
+                >
+                  <span
+                    className={`absolute top-0 bottom-0 rounded-[1px] transition-all duration-220 group-hover:opacity-100 ${
+                      r.status === "fail"
+                        ? "bg-rd opacity-90"
+                        : r.status === "pass"
+                          ? "bg-ink/45 opacity-90"
+                          : "running-pulse border border-cy/60 bg-cy/15"
+                    }`}
+                    style={{ left: `${start}%`, width: `${Math.max(end - start, 1.5)}%` }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[9px] text-ink-dim">
+            each bar is one scenario, placed in real time — overlaps show the
+            sandbox running three at once
+          </p>
+        </div>
+      )}
 
       {/* ── regression chart ────────────────────────────── */}
       <div className="rounded-md border border-edge bg-panel2 p-4">

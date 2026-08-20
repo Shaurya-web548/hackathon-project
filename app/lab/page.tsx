@@ -95,7 +95,10 @@ export default function Home() {
         runScenario(s, onStep, signal, chaos ? CHAOS_RETRIES[version] : 0),
       {
         onStart: (s) => {
-          setRuns((prev) => ({ ...prev, [s.id]: { ...idleRun(), status: "running" } }));
+          setRuns((prev) => ({
+            ...prev,
+            [s.id]: { ...idleRun(), status: "running", startedAt: Date.now() },
+          }));
           if (!pinnedRef.current) setSelectedId(s.id);
         },
         onStep: (s, step) => {
@@ -133,6 +136,8 @@ export default function Home() {
               done: true,
               failureMode: c.mode,
               evidence: c.mode ? c.evidence[c.mode] : undefined,
+              startedAt: prev[s.id]?.startedAt,
+              finishedAt: Date.now(),
             },
           }));
         },
