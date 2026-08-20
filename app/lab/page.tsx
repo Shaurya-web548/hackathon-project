@@ -49,6 +49,8 @@ export default function Home() {
   // the Automated Adversary
   const [advState, setAdvState] = useState<"idle" | "loading" | "live" | "fallback">("idle");
   const [advDiscarded, setAdvDiscarded] = useState(0);
+  /** the problem / agent the user wants the adversary to break */
+  const [attackTarget, setAttackTarget] = useState("");
   const [pulseRun, setPulseRun] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const [chaos, setChaos] = useState(false);
@@ -233,7 +235,8 @@ export default function Home() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          agentPrompt,
+          // the user's typed problem takes priority over the bundled prompt
+          agentPrompt: attackTarget.trim() || agentPrompt,
           tools: TOOLS.map((tl) => ({
             name: tl.name,
             description: tl.description,
@@ -517,6 +520,8 @@ export default function Home() {
                 attacks={attackList}
                 state={advState}
                 discarded={advDiscarded}
+                target={attackTarget}
+                onTargetChange={setAttackTarget}
                 onGenerate={generateAttacks}
               />
             )}

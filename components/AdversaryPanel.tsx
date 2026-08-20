@@ -12,6 +12,8 @@ export default function AdversaryPanel({
   attacks,
   state,
   discarded,
+  target,
+  onTargetChange,
   onGenerate,
 }: {
   tools: ToolDef[];
@@ -19,6 +21,9 @@ export default function AdversaryPanel({
   attacks: Scenario[];
   state: "idle" | "loading" | "live" | "fallback";
   discarded: number;
+  /** the problem / agent description to break */
+  target: string;
+  onTargetChange: (v: string) => void;
   onGenerate: () => void;
 }) {
   const destructiveCount = tools.filter((t) => t.destructive).length;
@@ -128,6 +133,49 @@ export default function AdversaryPanel({
           </button>
         </div>
       </div>
+
+      {/* the "break my problem" search bar */}
+      <form
+        className="mt-3 flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (state !== "loading") onGenerate();
+        }}
+      >
+        <div className="flex flex-1 items-center gap-2 rounded border border-edge bg-bg px-3 py-2 focus-within:border-am/50">
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-ink-dim" aria-hidden>
+            <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+            <line x1="10.5" y1="10.5" x2="14" y2="14" stroke="currentColor" strokeWidth="1.4" />
+          </svg>
+          <input
+            value={target}
+            onChange={(e) => onTargetChange(e.target.value)}
+            placeholder="Describe your agent or paste the prompt you want broken — the adversary will attack it"
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-ink placeholder:text-ink-dim/70 focus:outline-none"
+          />
+          {target && (
+            <button
+              type="button"
+              onClick={() => onTargetChange("")}
+              className="shrink-0 text-ink-dim hover:text-ink"
+              aria-label="clear"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <button
+          type="submit"
+          disabled={state === "loading"}
+          className={`shrink-0 rounded px-4 py-2 text-[13px] font-medium transition-colors ${
+            state === "loading"
+              ? "shimmer cursor-default text-ink"
+              : "bg-am/90 text-[#1a1206] hover:bg-am"
+          }`}
+        >
+          {state === "loading" ? (stageLabel ?? STAGES[0]) : "Break it"}
+        </button>
+      </form>
 
       {/* attack-surface viz */}
       <div ref={wrapRef} className="relative mt-3 border-t border-edge pt-3">
