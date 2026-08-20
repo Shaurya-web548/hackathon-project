@@ -7,6 +7,11 @@ import { AGENT_NAME, AGENT_TAGLINE, SYSTEM_PROMPT, TOOLS } from "@/data/demoAgen
 import { FALLBACK_GENERATED } from "@/data/fallbackGenerated";
 import { FALLBACK_ADVERSARY } from "@/data/fallbackAdversary";
 import { getScenarios, toRunnable, attackToScenario } from "@/data/scenarios";
+import {
+  isDestructiveName,
+  parseToolNames,
+  synthesizeAttacks,
+} from "@/lib/localAdversary";
 import { runScenario } from "@/lib/sandbox";
 import { classify } from "@/lib/classify";
 import { RunState, idleRun, runSuite } from "@/lib/runner";
@@ -51,6 +56,8 @@ export default function Home() {
   const [advDiscarded, setAdvDiscarded] = useState(0);
   /** the problem / agent the user wants the adversary to break */
   const [attackTarget, setAttackTarget] = useState("");
+  /** optional custom tool list for the adversary to aim at */
+  const [attackToolsInput, setAttackToolsInput] = useState("");
   const [pulseRun, setPulseRun] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const [chaos, setChaos] = useState(false);
@@ -216,15 +223,32 @@ export default function Home() {
   };
   const generatedVisible = scenarios.filter((s) => s.generated && !s.attack);
 
+  // the tool set the adversary aims at: user's custom list, else the bundled agent
+  const customToolNames = useMemo(() => parseToolNames(attackToolsInput), [attackToolsInput]);
+  const adversaryTools = useMemo(
+    () =>
+      customToolNames.length > 0
+        ? customToolNames.map((name) => ({ name, destructive: isDestructiveName(name) }))
+        : TOOLS.map((t) => ({ name: t.name, destructive: t.destructive })),
+    [customToolNames],
+  );
+
   /** The Automated Adversary: tool-aware attack generation. */
   const generateAttacks = async () => {
     if (advState === "loading") return;
     setAdvState("loading");
     setAdvDiscarded(0);
+    const problem = attackTarget.trim() || agentPrompt;
+    const toolNames = adversaryTools.map((t) => t.name);
     // staged feel: never resolve faster than ~1.4s even on a fast/cached call
     const minDelay = new Promise((r) => setTimeout(r, 1400));
+
+    // offline/no-key fallback: synthesize attacks grounded in the SAME tools —
+    // if the user typed a custom problem or tools, that's what gets attacked
+    const localAttacks = synthesizeAttacks(problem, toolNames);
+    const fallback = localAttacks.length > 0 ? localAttacks : FALLBACK_ADVERSARY;
     let result: { attacks: unknown[]; discarded: number; source: "live" | "fallback" } = {
-      attacks: FALLBACK_ADVERSARY,
+      attacks: fallback,
       discarded: 0,
       source: "fallback",
     };
@@ -235,11 +259,10 @@ export default function Home() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          // the user's typed problem takes priority over the bundled prompt
-          agentPrompt: attackTarget.trim() || agentPrompt,
-          tools: TOOLS.map((tl) => ({
+          agentPrompt: problem,
+          tools: adversaryTools.map((tl) => ({
             name: tl.name,
-            description: tl.description,
+            description: "",
             destructive: tl.destructive,
           })),
         }),
@@ -516,12 +539,14 @@ export default function Home() {
           <div ref={gridRef} className="min-h-0 flex-1 overflow-y-auto p-4">
             {!present && (
               <AdversaryPanel
-                tools={TOOLS}
+                tools={adversaryTools}
                 attacks={attackList}
                 state={advState}
                 discarded={advDiscarded}
                 target={attackTarget}
                 onTargetChange={setAttackTarget}
+                toolsInput={attackToolsInput}
+                onToolsChange={setAttackToolsInput}
                 onGenerate={generateAttacks}
               />
             )}

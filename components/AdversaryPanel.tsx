@@ -2,8 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ToolDef } from "@/data/demoAgent";
 import { Scenario } from "@/lib/types";
+
+interface PanelTool {
+  name: string;
+  destructive: boolean;
+}
 
 const STAGES = ["Analysing tools…", "Designing adversarial scenarios…"];
 
@@ -14,9 +18,11 @@ export default function AdversaryPanel({
   discarded,
   target,
   onTargetChange,
+  toolsInput,
+  onToolsChange,
   onGenerate,
 }: {
-  tools: ToolDef[];
+  tools: PanelTool[];
   /** generated attack scenarios currently on the grid */
   attacks: Scenario[];
   state: "idle" | "loading" | "live" | "fallback";
@@ -24,6 +30,9 @@ export default function AdversaryPanel({
   /** the problem / agent description to break */
   target: string;
   onTargetChange: (v: string) => void;
+  /** optional custom tool list (comma / newline separated) */
+  toolsInput: string;
+  onToolsChange: (v: string) => void;
   onGenerate: () => void;
 }) {
   const destructiveCount = tools.filter((t) => t.destructive).length;
@@ -164,6 +173,13 @@ export default function AdversaryPanel({
             </button>
           )}
         </div>
+        <input
+          value={toolsInput}
+          onChange={(e) => onToolsChange(e.target.value)}
+          placeholder="tools (optional): e.g. transfer_funds, close_account"
+          title="Comma-separated tool names. Leave blank to attack the bundled demo agent."
+          className="w-56 shrink-0 rounded border border-edge bg-bg px-3 py-2 font-mono text-[11px] text-ink placeholder:text-ink-dim/60 focus:border-am/50 focus:outline-none"
+        />
         <button
           type="submit"
           disabled={state === "loading"}
